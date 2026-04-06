@@ -30,10 +30,10 @@
 
 | # | Подсистема | Задача | Статус | Примечания |
 |---|---|---|---|---|
-| 1.1 | Engine Loop | Инициализация, game loop, shutdown | 🔄 | |
+| 1.1 | Engine Loop | Инициализация, game loop, shutdown | ✅ | |
 | 1.2 | Engine Loop | Delta time, fixed update, фреймлимит | 🔄 | |
 | 1.3 | Window | Win32 окно, resize, fullscreen | ⏳ | |
-| 1.4 | Input | Клавиатура, мышь, raw input | 🔄 | |
+| 1.4 | Input | Клавиатура, мышь, raw input | ✅ | |
 | 1.5 | Config | Парсинг `.vcconfig` (JSON) | 🔄 | |
 | 1.6 | Logging | spdlog интеграция, уровни, файл | ⏳ | |
 | 1.7 | FileSystem | Абстракция FS, пути, hot-watch | 🔄 | |
@@ -56,8 +56,8 @@
 
 | # | Подсистема | Задача | Статус | Примечания |
 |---|---|---|---|---|
-| 3.1 | DX12 Init | Device, adapter, debug layer | 🔄 | |
-| 3.2 | DX12 Init | Command queue, allocator, list | 🔄 | |
+| 3.1 | DX12 Init | Device, adapter, debug layer | ✅ | |
+| 3.2 | DX12 Init | Command queue, allocator, list | ✅ | |
 | 3.3 | DX12 Init | SwapChain (DXGI), Present | 🔄 | |
 | 3.4 | DX12 Init | Descriptor heaps (RTV, DSV, CBV/SRV/UAV) | 🔄 | |
 | 3.5 | DX12 Sync | Fence, GPU/CPU синхронизация | 🔄 | |
