@@ -18,7 +18,7 @@
 | Сборка | CMake 3.25+, MSVC 2022, Windows 10/11 |
 | Редактор | Dear ImGui (встроенный) |
 | ECS | entt |
-| Сеть | Custom (authoritative server, WIP) |
+| Сеть | ENET (authoritative server, WIP) |
 
 ---
 
