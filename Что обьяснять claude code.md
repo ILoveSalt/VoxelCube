@@ -30,16 +30,16 @@
 
 | # | Подсистема | Задача | Статус | Примечания |
 |---|---|---|---|---|
-| 1.1 | Engine Loop | Инициализация, game loop, shutdown | ⏳ | |
-| 1.2 | Engine Loop | Delta time, fixed update, фреймлимит | ⏳ | |
+| 1.1 | Engine Loop | Инициализация, game loop, shutdown | 🔄 | |
+| 1.2 | Engine Loop | Delta time, fixed update, фреймлимит | 🔄 | |
 | 1.3 | Window | Win32 окно, resize, fullscreen | ⏳ | |
-| 1.4 | Input | Клавиатура, мышь, raw input | ⏳ | |
-| 1.5 | Config | Парсинг `.vcconfig` (JSON) | ⏳ | |
+| 1.4 | Input | Клавиатура, мышь, raw input | 🔄 | |
+| 1.5 | Config | Парсинг `.vcconfig` (JSON) | 🔄 | |
 | 1.6 | Logging | spdlog интеграция, уровни, файл | ⏳ | |
-| 1.7 | FileSystem | Абстракция FS, пути, hot-watch | ⏳ | |
-| 1.8 | Events | EventBus, Subscribe/Emit | ⏳ | |
-| 1.9 | Threading | JobSystem, thread pool | ⏳ | |
-| 1.10 | Memory | Custom allocator, arena, pool | ⏳ | |
+| 1.7 | FileSystem | Абстракция FS, пути, hot-watch | 🔄 | |
+| 1.8 | Events | EventBus, Subscribe/Emit | 🔄 | |
+| 1.9 | Threading | JobSystem, thread pool | 🔄 | |
+| 1.10 | Memory | Custom allocator, arena, pool | 🔄 | |
 
 ### 🟣 ECS — Entity Component System
 
@@ -56,44 +56,44 @@
 
 | # | Подсистема | Задача | Статус | Примечания |
 |---|---|---|---|---|
-| 3.1 | DX12 Init | Device, adapter, debug layer | ⏳ | |
-| 3.2 | DX12 Init | Command queue, allocator, list | ⏳ | |
-| 3.3 | DX12 Init | SwapChain (DXGI), Present | ⏳ | |
-| 3.4 | DX12 Init | Descriptor heaps (RTV, DSV, CBV/SRV/UAV) | ⏳ | |
-| 3.5 | DX12 Sync | Fence, GPU/CPU синхронизация | ⏳ | |
-| 3.6 | Memory | D3D12MemoryAllocator интеграция | ⏳ | |
-| 3.7 | Shaders | DXC компиляция HLSL шейдеров | ⏳ | |
-| 3.8 | Pipeline | PSO (Pipeline State Object) | ⏳ | |
-| 3.9 | Geometry | VertexBuffer, IndexBuffer upload | ⏳ | |
-| 3.10 | Textures | Texture2D загрузка (.dds), SRV | ⏳ | |
-| 3.11 | Textures | Texture Atlas система | ⏳ | |
-| 3.12 | Rendering | Depth Pre-Pass | ⏳ | |
-| 3.13 | Rendering | G-Buffer (Deferred Shading) | ⏳ | |
-| 3.14 | Rendering | Lighting Pass (Directional + Point) | ⏳ | |
-| 3.15 | Rendering | Shadow Maps (CSM) | ⏳ | |
-| 3.16 | Rendering | Transparent вокселей проход | ⏳ | |
-| 3.17 | Post-FX | SSAO | ⏳ | |
+| 3.1 | DX12 Init | Device, adapter, debug layer | 🔄 | |
+| 3.2 | DX12 Init | Command queue, allocator, list | 🔄 | |
+| 3.3 | DX12 Init | SwapChain (DXGI), Present | 🔄 | |
+| 3.4 | DX12 Init | Descriptor heaps (RTV, DSV, CBV/SRV/UAV) | 🔄 | |
+| 3.5 | DX12 Sync | Fence, GPU/CPU синхронизация | 🔄 | |
+| 3.6 | Memory | D3D12MemoryAllocator интеграция | 🔄 | |
+| 3.7 | Shaders | DXC компиляция HLSL шейдеров | 🔄 | |
+| 3.8 | Pipeline | PSO (Pipeline State Object) | 🔄 | |
+| 3.9 | Geometry | VertexBuffer, IndexBuffer upload | 🔄 | |
+| 3.10 | Textures | Texture2D загрузка (.dds), SRV | 🔄 | |
+| 3.11 | Textures | Texture Atlas система | 🔄 | |
+| 3.12 | Rendering | Depth Pre-Pass | 🔄 | |
+| 3.13 | Rendering | G-Buffer (Deferred Shading) | 🔄 | |
+| 3.14 | Rendering | Lighting Pass (Directional + Point) | 🔄 | |
+| 3.15 | Rendering | Shadow Maps (CSM) | 🔄 | |
+| 3.16 | Rendering | Transparent вокселей проход | 🔄 | |
+| 3.17 | Post-FX | SSAO | 🔄 | |
 | 3.18 | Post-FX | TAA (Temporal Anti-Aliasing) | ⏳ | |
-| 3.19 | Post-FX | Bloom | ⏳ | |
-| 3.20 | Post-FX | Tone Mapping | ⏳ | |
-| 3.21 | Advanced | Variable Rate Shading (VRS) | ⏳ | |
-| 3.22 | Advanced | Mesh Shaders для вокселей | ⏳ | |
-| 3.23 | Advanced | DXR Ray Tracing (тени) | ⏳ | |
-| 3.24 | Advanced | DXR Ray Tracing (GI/отражения) | ⏳ | |
-| 3.25 | Advanced | DirectStorage интеграция | ⏳ | |
+| 3.19 | Post-FX | Bloom | 🔄 | |
+| 3.20 | Post-FX | Tone Mapping | 🔄 | |
+| 3.21 | Advanced | Variable Rate Shading (VRS) | 🔄 | |
+| 3.22 | Advanced | Mesh Shaders для вокселей | 🔄 | |
+| 3.23 | Advanced | DXR Ray Tracing (тени) | 🔄 | |
+| 3.24 | Advanced | DXR Ray Tracing (GI/отражения) | 🔄 | |
+| 3.25 | Advanced | DirectStorage интеграция | 🔄 | |
 
 ### 🟠 WORLD & MGS — Мир и воксельная система
 
 | # | Подсистема | Задача | Статус | Примечания |
 |---|---|---|---|---|
-| 4.1 | VoxelRegistry | Регистрация типов вокселей | ⏳ | |
-| 4.2 | VoxelRegistry | Параметры: текстура, звук, hardness | ⏳ | |
+| 4.1 | VoxelRegistry | Регистрация типов вокселей | 🔄 | |
+| 4.2 | VoxelRegistry | Параметры: текстура, звук, hardness | 🔄 | |
 | 4.3 | VoxelData | RLE-сжатие воксельных данных | ⏳ | |
-| 4.4 | VoxelCluster | Структура кластера (AABB, DirtyFlag) | ⏳ | |
-| 4.5 | MGS | Алгоритм merge: соседние вокселей → 1 кластер | ⏳ | КЛЮЧЕВАЯ задача |
-| 4.6 | MGS | Greedy Meshing внутри кластера | ⏳ | |
-| 4.7 | MGS | Async rebuild меша (worker threads) | ⏳ | |
-| 4.8 | MGS | Авто-split/merge при изменении | ⏳ | |
+| 4.4 | VoxelCluster | Структура кластера (AABB, DirtyFlag) | 🔄 | |
+| 4.5 | MGS | Алгоритм merge: соседние вокселей → 1 кластер | 🔄 | КЛЮЧЕВАЯ задача |
+| 4.6 | MGS | Greedy Meshing внутри кластера | 🔄 | |
+| 4.7 | MGS | Async rebuild меша (worker threads) | 🔄 | |
+| 4.8 | MGS | Авто-split/merge при изменении | 🔄 | |
 | 4.9 | Destructibility | Режимы: STATIC / CHUNK_BREAK / VOXEL_BREAK / FRACTURE | ⏳ | |
 | 4.10 | World | Chunk система (32×32×256) | ⏳ | |
 | 4.11 | World | Динамическая подгрузка чанков | ⏳ | |
