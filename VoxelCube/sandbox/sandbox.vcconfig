@@ -1,0 +1,25 @@
+﻿{
+  "application": {
+    "name": "VoxelCube Sandbox",
+    "window": {
+      "width": 1600,
+      "height": 900,
+      "resizable": true,
+      "startMaximized": false,
+      "startFullscreen": false
+    },
+    "logging": {
+      "minimumLevel": "trace",
+      "enableConsole": true,
+      "enableFile": true,
+      "filePath": "logs/sandbox/voxelcube_sandbox.log"
+    },
+    "timing": {
+      "fixedTimeStep": 0.0166666667,
+      "targetFrameRate": 60,
+      "maxDeltaTime": 0.25,
+      "maxFrames": 300
+    }
+  }
+}
+
