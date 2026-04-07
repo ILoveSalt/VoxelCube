@@ -30,16 +30,16 @@
 
 | # | Подсистема | Задача | Статус | Примечания |
 |---|---|---|---|---|
-| 1.1 | Engine Loop | Инициализация, game loop, shutdown | ✅ | |
-| 1.2 | Engine Loop | Delta time, fixed update, фреймлимит | 🔄 | |
-| 1.3 | Window | Win32 окно, resize, fullscreen | ⏳ | |
-| 1.4 | Input | Клавиатура, мышь, raw input | ✅ | |
-| 1.5 | Config | Парсинг `.vcconfig` (JSON) | 🔄 | |
-| 1.6 | Logging | spdlog интеграция, уровни, файл | ⏳ | |
-| 1.7 | FileSystem | Абстракция FS, пути, hot-watch | 🔄 | |
-| 1.8 | Events | EventBus, Subscribe/Emit | 🔄 | |
-| 1.9 | Threading | JobSystem, thread pool | 🔄 | |
-| 1.10 | Memory | Custom allocator, arena, pool | 🔄 | |
+| 1.1 | Engine Loop | Инициализация, game loop, shutdown | ✅ Готово | `Application::Run()` интегрирован с жизненным циклом Win32-окна и корректным shutdown |
+| 1.2 | Engine Loop | Delta time, fixed update, фреймлимит | ✅ Готово | Есть `Timestep`, fixed-step accumulator, target FPS и frame budget для smoke-тестов |
+| 1.3 | Window | Win32 окно, resize, fullscreen | ✅ Готово | Реализован `Window` wrapper, resize tracking, message pump и fullscreen по `F11` / `Alt+Enter` |
+| 1.4 | Input | Клавиатура, мышь, raw input | ✅ Готово | Есть polling API `Input`, состояния клавиш/кнопок мыши, wheel и raw mouse delta через `WM_INPUT` |
+| 1.5 | Config | Парсинг `.vcconfig` (JSON) | ✅ Готово | Реализован JSON DOM, загрузка из файла и применение `.vcconfig` к `ApplicationSpecification` |
+| 1.6 | Logging | spdlog интеграция, уровни, файл | ✅ Готово | Есть уровни логирования, console/file sinks, настройка через `.vcconfig` и auto-detect `spdlog` через CMake; без зависимости работает встроенный backend |
+| 1.7 | FileSystem | Абстракция FS, пути, hot-watch | ✅ Готово | Есть `FileSystem` для path/io и polling-based `FileSystemWatcher`; sandbox hot-watch для `.vcconfig` проверен |
+| 1.8 | Events | EventBus, Subscribe/Emit | ✅ Готово | Есть `EventBus` с `Subscribe/Emit`, generic `OnEvent`, события окна и ввода, sandbox использует подписки на resize/wheel/close |
+| 1.9 | Threading | JobSystem, thread pool | ⏳ | |
+| 1.10 | Memory | Custom allocator, arena, pool | ⏳ | |
 
 ### 🟣 ECS — Entity Component System
 
@@ -56,44 +56,44 @@
 
 | # | Подсистема | Задача | Статус | Примечания |
 |---|---|---|---|---|
-| 3.1 | DX11 Init | Device, adapter, debug layer | ✅ | |
-| 3.2 | DX11 Init | DeviceContext, immediate context | ✅ | |
-| 3.3 | DX11 Init | SwapChain (DXGI), Present | 🔄 | |
-| 3.4 | DX11 Init | RenderTargetView, DepthStencilView, SRV | 🔄 | |
-| 3.5 | DX11 Sync | Flush, синхронизация DeviceContext | 🔄 | |
-| 3.6 | Memory | Управление буферами (Map/Unmap) | 🔄 | |
-| 3.7 | Shaders | FXC/D3DCompile компиляция HLSL шейдеров | 🔄 | |
-| 3.8 | Pipeline | Input Layout, Rasterizer, Blend State | 🔄 | |
-| 3.9 | Geometry | VertexBuffer, IndexBuffer upload | 🔄 | |
-| 3.10 | Textures | Texture2D загрузка (.dds), SRV | 🔄 | |
-| 3.11 | Textures | Texture Atlas система | 🔄 | |
-| 3.12 | Rendering | Depth Pre-Pass | 🔄 | |
-| 3.13 | Rendering | G-Buffer (Deferred Shading) | 🔄 | |
-| 3.14 | Rendering | Lighting Pass (Directional + Point) | 🔄 | |
-| 3.15 | Rendering | Shadow Maps (CSM) | 🔄 | |
-| 3.16 | Rendering | Transparent вокселей проход | 🔄 | |
-| 3.17 | Post-FX | SSAO | 🔄 | |
+| 3.1 | DX11 Init | Device, adapter, debug layer | ⏳ | |
+| 3.2 | DX11 Init | DeviceContext, immediate context | ⏳ | |
+| 3.3 | DX11 Init | SwapChain (DXGI), Present | ⏳ | |
+| 3.4 | DX11 Init | RenderTargetView, DepthStencilView, SRV | ⏳ | |
+| 3.5 | DX11 Sync | Flush, синхронизация DeviceContext | ⏳ | |
+| 3.6 | Memory | Управление буферами (Map/Unmap) | ⏳ | |
+| 3.7 | Shaders | FXC/D3DCompile компиляция HLSL шейдеров | ⏳ | |
+| 3.8 | Pipeline | Input Layout, Rasterizer, Blend State | ⏳ | |
+| 3.9 | Geometry | VertexBuffer, IndexBuffer upload | ⏳ | |
+| 3.10 | Textures | Texture2D загрузка (.dds), SRV | ⏳ | |
+| 3.11 | Textures | Texture Atlas система | ⏳ | |
+| 3.12 | Rendering | Depth Pre-Pass | ⏳ | |
+| 3.13 | Rendering | G-Buffer (Deferred Shading) | ⏳ | |
+| 3.14 | Rendering | Lighting Pass (Directional + Point) | ⏳ | |
+| 3.15 | Rendering | Shadow Maps (CSM) | ⏳ | |
+| 3.16 | Rendering | Transparent вокселей проход | ⏳ | |
+| 3.17 | Post-FX | SSAO | ⏳ | |
 | 3.18 | Post-FX | TAA (Temporal Anti-Aliasing) | ⏳ | |
-| 3.19 | Post-FX | Bloom | 🔄 | |
-| 3.20 | Post-FX | Tone Mapping | 🔄 | |
-| 3.21 | Advanced | Dynamic Resolution Scaling | 🔄 | |
-| 3.22 | Advanced | Geometry Shader для вокселей (опционально) | 🔄 | |
-| 3.23 | Advanced | Soft Shadows (PCF) | 🔄 | |
-| 3.24 | Advanced | Screen-Space Reflections (SSR) | 🔄 | |
-| 3.25 | Advanced | Async texture streaming (WIC/DDSLoader) | 🔄 | |
+| 3.19 | Post-FX | Bloom | ⏳ | |
+| 3.20 | Post-FX | Tone Mapping | ⏳ | |
+| 3.21 | Advanced | Dynamic Resolution Scaling | ⏳ | |
+| 3.22 | Advanced | Geometry Shader для вокселей (опционально) | ⏳ | |
+| 3.23 | Advanced | Soft Shadows (PCF) | ⏳ | |
+| 3.24 | Advanced | Screen-Space Reflections (SSR) | ⏳ | |
+| 3.25 | Advanced | Async texture streaming (WIC/DDSLoader) | ⏳ | |
 
 ### 🟠 WORLD & MGS — Мир и воксельная система
 
 | # | Подсистема | Задача | Статус | Примечания |
 |---|---|---|---|---|
-| 4.1 | VoxelRegistry | Регистрация типов вокселей | 🔄 | |
-| 4.2 | VoxelRegistry | Параметры: текстура, звук, hardness | 🔄 | |
+| 4.1 | VoxelRegistry | Регистрация типов вокселей | ⏳ | |
+| 4.2 | VoxelRegistry | Параметры: текстура, звук, hardness | ⏳ | |
 | 4.3 | VoxelData | RLE-сжатие воксельных данных | ⏳ | |
-| 4.4 | VoxelCluster | Структура кластера (AABB, DirtyFlag) | 🔄 | |
-| 4.5 | MGS | Алгоритм merge: соседние вокселей → 1 кластер | 🔄 | КЛЮЧЕВАЯ задача |
-| 4.6 | MGS | Greedy Meshing внутри кластера | 🔄 | |
-| 4.7 | MGS | Async rebuild меша (worker threads) | 🔄 | |
-| 4.8 | MGS | Авто-split/merge при изменении | 🔄 | |
+| 4.4 | VoxelCluster | Структура кластера (AABB, DirtyFlag) | ⏳ | |
+| 4.5 | MGS | Алгоритм merge: соседние вокселей → 1 кластер | ⏳ | КЛЮЧЕВАЯ задача |
+| 4.6 | MGS | Greedy Meshing внутри кластера | ⏳ | |
+| 4.7 | MGS | Async rebuild меша (worker threads) | ⏳ | |
+| 4.8 | MGS | Авто-split/merge при изменении | ⏳ | |
 | 4.9 | Destructibility | Режимы: STATIC / CHUNK_BREAK / VOXEL_BREAK / FRACTURE | ⏳ | |
 | 4.10 | World | Chunk система (32×32×256) | ⏳ | |
 | 4.11 | World | Динамическая подгрузка чанков | ⏳ | |
@@ -209,7 +209,7 @@
 VoxelCube/
 ├── CMakeLists.txt
 ├── CMakePresets.json
-├── CHATGPT.md                 ← этот файл
+├── Что_обьяснять_ChatGPT.md   ← этот файл
 ├── README.md
 │
 ├── engine/
@@ -252,7 +252,7 @@ VoxelCube/
 - Все публичные типы живут в `engine/include/VoxelCube/` — никогда не в `src/`
 - Умные указатели: `vc::Ref<T>` = `std::shared_ptr<T>`, `vc::Scope<T>` = `std::unique_ptr<T>`
 - `VC_ASSERT(cond, msg)` вместо голых `assert`
-- Логирование только через `VC_LOG_INFO / VC_LOG_WARN / VC_LOG_ERROR` (spdlog под капотом)
+- Логирование только через `VC_LOG_TRACE / VC_LOG_INFO / VC_LOG_WARN / VC_LOG_ERROR` (встроенный console/file backend уже работает; при наличии зависимости CMake автоматически подключает `spdlog`)
 - Все строки путей через `vc::Path` (обёртка над `std::filesystem::path`)
 - HLSL шейдеры — `shaders/` в корне, компилируются через FXC/D3DCompile в `.cso` при сборке
 
@@ -302,7 +302,10 @@ namespace vc { namespace world { } }
 
 | # | Проблема | Статус | Решение / Заметка |
 |---|---|---|---|
-| — | — | — | — |
+| 1 | Окно пока без DX11-рендера | 🔄 В процессе | Win32 lifecycle уже поднят, но `Device/SwapChain/RTV` начнутся на этапе 3.1–3.4 |
+| 2 | `spdlog` не закреплён как обязательная зависимость репозитория | 🔄 В процессе | CMake уже умеет автоматически подключать `spdlog`, но текущий bootstrap полностью работает и без него на встроенном backend с файловым логом |
+| 3 | В build-логе мелькает `pwsh.exe` warning от vcpkg | 🔄 В процессе | Сборка не падает: vcpkg автоматически откатывается на `powershell.exe`; позже можно добавить PowerShell 7 в `PATH` |
+| 4 | Hot-watch пока polling-based | 🔄 В процессе | `FileSystemWatcher` уже рабочий и подходит для dev/hot-reload; при необходимости позже можно заменить на OS-level notifications |
 
 ---
 
@@ -313,6 +316,13 @@ namespace vc { namespace world { } }
 | Дата | Что сделано | Блок |
 |---|---|---|
 | — | Проект создан, README и CLAUDE.md написаны | — |
+| 2026-04-07 | Поднят стартовый CMake-каркас, реализованы `Base`, `Timestep`, `Log`, `Application`, добавлен headless sandbox и проверена сборка через VS2022 | 1.1 / 1.2 / 1.6 |
+| 2026-04-07 | Реализовано Win32-окно (`Window`), resize/fullscreen, message pump внутри `Application`, sandbox переведён на оконный режим и проверен запуск | 1.3 |
+| 2026-04-07 | Реализована подсистема ввода: клавиатура, мышь, wheel и raw input; `WindowProc` интегрирован с `Input`, sandbox проверен на новом API | 1.4 |
+| 2026-04-07 | Реализован парсинг `.vcconfig`: JSON DOM (`ConfigDocument`/`ConfigValue`), загрузка `ApplicationSpecification` из файла и запуск sandbox из `sandbox/sandbox.vcconfig` | 1.5 |
+| 2026-04-07 | Логгер доведён до рабочего состояния: уровни, console/file output, конфигурирование через `.vcconfig`, автоматическое подключение `spdlog` через CMake при наличии зависимости и проверка записи в `logs/sandbox/voxelcube_sandbox.log` | 1.6 |
+| 2026-04-07 | Реализован `FileSystem`: path utilities, чтение/запись текста, перечисление файлов и polling-based hot-watch; `Config` переведён на новый слой, sandbox watcher проверен на изменении `.vcconfig` | 1.7 |
+| 2026-04-07 | Реализован header-only `EventBus`: `Subscribe/SubscribeAny/Emit`, базовый `Event`, `OnEvent` в `Application`, события окна и ввода (`resize`, `fullscreen`, `close`, `keyboard`, `mouse`, `raw input`); sandbox переведён на подписки и runtime-проверен | 1.8 |
 
 ---
 
