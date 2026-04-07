@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/VoxelCube/build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

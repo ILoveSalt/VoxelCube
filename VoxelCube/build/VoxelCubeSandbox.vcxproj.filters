@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\VoxelCube\sandbox\src\Main.cpp">
+      <Filter>sandbox\src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\VoxelCube\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="sandbox">
+      <UniqueIdentifier>{7FB15E27-E10A-385A-BBF1-3F68D8677C4B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="sandbox\src">
+      <UniqueIdentifier>{88BB3822-416A-3640-B36F-682A45214950}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

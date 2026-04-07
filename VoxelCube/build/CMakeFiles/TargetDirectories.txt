@@ -1,0 +1,4 @@
+C:/VoxelCube/build/CMakeFiles/VoxelCube.dir
+C:/VoxelCube/build/CMakeFiles/VoxelCubeSandbox.dir
+C:/VoxelCube/build/CMakeFiles/ALL_BUILD.dir
+C:/VoxelCube/build/CMakeFiles/ZERO_CHECK.dir

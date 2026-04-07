@@ -1,0 +1,10 @@
+^C:\VOXELCUBE\BUILD\CMAKEFILES\ABC7F3A98A7F015CDE887B4F3437B916\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/VoxelCube -BC:/VoxelCube/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/VoxelCube/build/VoxelCube.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

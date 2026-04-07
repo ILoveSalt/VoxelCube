@@ -1,0 +1,40 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\VoxelCube\engine\src\core\Application.cpp">
+      <Filter>engine\src\core</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\VoxelCube\engine\src\core\ApplicationConfig.cpp">
+      <Filter>engine\src\core</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\VoxelCube\engine\src\core\Config.cpp">
+      <Filter>engine\src\core</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\VoxelCube\engine\src\core\FileSystem.cpp">
+      <Filter>engine\src\core</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\VoxelCube\engine\src\core\Input.cpp">
+      <Filter>engine\src\core</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\VoxelCube\engine\src\core\Log.cpp">
+      <Filter>engine\src\core</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\VoxelCube\engine\src\core\Window.cpp">
+      <Filter>engine\src\core</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\VoxelCube\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="engine">
+      <UniqueIdentifier>{0691CAA3-B72E-3CBE-9EC1-F52CB78826A3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\src">
+      <UniqueIdentifier>{047B4C29-8CAA-3C43-94EF-A441952805E0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\src\core">
+      <UniqueIdentifier>{0BFF8E99-D209-302A-A5D6-D4B014CE36E2}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
