@@ -284,84 +284,6 @@ class Player : public vc::Entity {
     }
 };
 ```
- 
----
- 
-## 💻 API для разработчиков
- 
-VoxelCube предоставляет полноценное двуязычное API: **C++** для высокопроизводительной логики и **C#** для скриптинга, прототипирования и моддинга.
- 
-### C++ API
- 
-```cpp
-#include <VoxelCube/VoxelCube.h>
- 
-class MyGame : public vc::Application {
-public:
-    void OnInit() override {
-        // DirectX 12 рендерер
-        auto& renderer = GetRenderer();
-        renderer.SetVSync(true);
-        renderer.SetRayTracing(vc::RTFlags::Shadows | vc::RTFlags::Reflections);
- 
-        // Мир с Merged Geometry System
-        world_ = vc::World::Create({
-            .seed           = 42,
-            .generator      = vc::WorldGen::Perlin,
-            .mergeThreshold = 64,
-            .destructMode   = vc::Destructibility::ChunkBreak,
-        });
- 
-        // Регистрация типов вокселей
-        auto& voxels = world_->GetVoxelRegistry();
-        voxels.Register("grass", {
-            .textureTop    = "textures/grass_top.dds",
-            .textureSide   = "textures/grass_side.dds",
-            .textureBottom = "textures/dirt.dds",
-            .hardness      = 0.6f,
-            .soundGroup    = "grass",
-        });
- 
-        // PhysX — настройка симуляции
-        auto& physics = GetPhysics();
-        physics.SetGravity({ 0, -9.81f, 0 });
-        physics.SetSubsteps(4);
- 
-        // OpenAL — фоновое аудио
-        auto& audio = GetAudio();
-        audio.LoadBank("sounds/ambient.bank");
-        audio.PlayAmbient("forest_wind", { .loop = true, .volume = 0.4f });
-    }
- 
-    void OnUpdate(float dt) override {
-        world_->Update(dt);
- 
-        // Raycast для разрушения вокселей
-        auto hit = world_->Raycast(camera_.GetRay(), 10.0f);
-        if (hit && Input::IsJustPressed(vc::MouseButton::Left)) {
-            world_->RemoveVoxel(hit.position);
-        }
-    }
- 
-private:
-    vc::Ref<vc::World> world_;
-    vc::Camera         camera_;
-};
- 
-VC_MAIN(MyGame)
-```
-
-### Система событий
- 
-```cpp
-// C++
-EventBus::Subscribe<VoxelDestroyedEvent>([](auto& e) {
-    SpawnParticles(e.position, e.voxelType);
-    AwardPoints(10);
-});
-EventBus::Emit(VoxelDestroyedEvent{ position, VoxelType::Stone });
-```
-
 ---
  
 ## 🏗️ Архитектура
@@ -527,7 +449,6 @@ VoxelCube/
 - [x] PhysX 5 интеграция (Rigid Body)
 - [x] OpenAL 3D звук
 - [x] ECS (entt)
-- [ ] C# API через CppSharp
 - [ ] Базовый редактор (Viewport + Outliner)
 - [ ] File System Browser в редакторе
  
@@ -536,7 +457,7 @@ VoxelCube/
 - [ ] VoxelPainter и TerrainTool
 - [ ] Build System для Win64
 - [ ] Упаковка ресурсов в `.vcpak`
-- [ ] Hot Reload шейдеров и C#-скриптов
+- [ ] Hot Reload шейдеров и C++-скриптов
  
 ### v0.3.0 — Multiplayer
 - [ ] Authoritative Server архитектура
