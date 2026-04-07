@@ -45,20 +45,13 @@
 | Деструктивность | Поблочная | Полная | **Configurable** (по зонам) |
 | Физика | AABB простая | Custom | **NVIDIA PhysX 5** |
 | Редактор | Нет | Нет | **Встроенный (UE-стиль)** |
-| Скриптинг | Java/Lua | Нет | **C++ / C#** |
+| Скриптинг | Java/Lua | Нет | **C++  |
  
 ---
  
 ## ⚙️ Ключевые технологии
  
-### Рендеринг — DirectX 12
-- Низкоуровневое управление GPU с минимальными накладными расходами
-- Multi-threaded Command List Recording для параллельной записи команд
-- Bindless Resources — неограниченное число текстур без rebind
-- Ray Tracing (DXR) — тени, отражения, глобальное освещение *(WIP)*
-- Mesh Shaders для процедурной генерации воксельной геометрии
-- Variable Rate Shading (VRS) — динамическая детализация удалённых объектов
-- DirectStorage для быстрой загрузки ресурсов с NVMe напрямую в GPU
+### Рендеринг — DirectX 11
  
 ### Физика — NVIDIA PhysX 5
 - Полная поддержка Rigid Body Dynamics
@@ -103,7 +96,7 @@ VoxelCluster
 ├── VoxelType               — тип вокселей в кластере
 ├── DirtyFlag               — флаг перестройки меша
 ├── VoxelData[N]            — воксельные данные (RLE-сжатие)
-├── VertexBuffer (DX12)     — готовый меш на GPU
+├── VertexBuffer (DX11)     — готовый меш на GPU
 └── PhysicsShape (PhysX)    — коллизия кластера
 ```
  
@@ -138,7 +131,7 @@ VoxelCluster
 │  [File]  [Edit]  [Build]  [Server]  [Tools]  [Help]  VoxelCube  │
 ├─────────────────┬──────────────────────────┬────────────────────┤
 │                 │                          │                    │
-│  World          │   VIEWPORT  (DX12)       │   Properties       │
+│  World          │   VIEWPORT  (DX11)       │   Properties       │
 │  Outliner       │                          │   Inspector        │
 │                 │                          │                    │
 │  ── World       │                          │   Transform        │
@@ -164,7 +157,7 @@ VoxelCluster
   - Текстуры: `.png`, `.jpg`, `.dds`, `.tga`
   - Аудио: `.wav`, `.ogg`, `.flac`
   - Сцены и префабы: `.vcscene`, `.vcprefab` (нативный формат)
-  - Скрипты: `.cpp`, `.h`, `.cs`
+  - Скрипты: `.cpp`, `.h`
 - Hot Reload шейдеров и C#-скриптов без перезапуска редактора
 - Встроенная история изменений и Git-статус файлов
  
@@ -178,11 +171,11 @@ VoxelCluster
  
 ### Редактор скриптов
  
-- Подсветка синтаксиса C++ и C#
+- Подсветка синтаксиса C++ 
 - Автодополнение через Language Server Protocol (LSP)
 - Интеграция с VS Code, CLion, Rider через генерацию `.vscode` / `.idea`
 - Live-дебаггинг: точки останова, просмотр переменных прямо в редакторе
-- Hot Reload C#-скриптов в Play Mode
+- Hot Reload C++-скриптов в Play Mode
  
 ---
  
@@ -199,7 +192,7 @@ Project Settings → Build
 ├── Optimization:     [O0]  [O2]  [O3]
 ├── Pak Assets:       [✓] Упаковать ресурсы в .vcpak
 ├── Strip Symbols:    [✓] Убрать отладочные символы (Shipping)
-├── Obfuscate C#:     [✓] Скомпилировать .cs → IL + обфускация
+├── Obfuscate C++:     [✓] Скомпилировать .cpp → IL + обфускация
 └── Output Dir:       ./Build/Windows_x64/
 ```
  
@@ -223,11 +216,11 @@ Build/
  
 ### Поддержка платформ
  
-| Платформа | C++ | C# | Графика | Статус |
+| Платформа | C++ |  Графика | Статус |
 |---|---|---|---|---|
-| Windows 10/11 x64 | ✅ | ✅ | DirectX 12 | Основная |
-| Linux x64 | ✅ | ✅ | Vulkan | WIP |
-| macOS ARM | ✅ | ✅ | Metal | Planned |
+| Windows 10/11 x64 | ✅ | DirectX 11 | Основная |
+| Linux x64 | ✅ | Vulkan | WIP |
+| macOS ARM | ✅ | Metal | Planned |
  
 ---
  
@@ -246,7 +239,7 @@ Build/
 ├── Windows_x64/
 │   └── MyGame.exe            — клиентская часть
 └── Server_x64/
-    ├── MyGameServer.exe      — выделенный сервер (без DX12 и звука)
+    ├── MyGameServer.exe      — выделенный сервер (без DX11 и звука)
     ├── VoxelCubeServer.dll   — серверный рантайм
     └── server.cfg            — конфиг сервера
 ```
@@ -290,27 +283,6 @@ class Player : public vc::Entity {
         GetComponent<ParticleSystem>().Emit("hit_sparks");
     }
 };
-```
- 
-```csharp
-// C# — тот же API
-public class Player : vc.Entity
-{
-    [VCNet.Replicated] public float Health { get; set; } = 100.0f;
-    [VCNet.Replicated] public vc.Vec3 Position { get; set; }
-
-    [VCNet.ServerRpc]
-    public void TakeDamage(float damage)
-    {
-        Health -= damage;
-    }
-
-    [VCNet.MulticastRpc]
-    public void PlayHitEffect()
-    {
-        GetComponent<vc.ParticleSystem>().Emit("hit_sparks");
-    }
-}
 ```
  
 ---
@@ -378,63 +350,7 @@ private:
  
 VC_MAIN(MyGame)
 ```
- 
-### C# API
- 
-```csharp
-using VoxelCube;
 
-public class MyGame : vc.Application
-{
-    private vc.World world;
-
-    public override void OnInit()
-    {
-        var renderer = GetRenderer();
-        renderer.VSync = true;
-
-        world = vc.World.Create(new vc.WorldConfig {
-            Seed           = 42,
-            Generator      = vc.WorldGen.Perlin,
-            MergeThreshold = 64,
-            DestructMode   = vc.Destructibility.ChunkBreak
-        });
-
-        world.VoxelRegistry.Register("stone", new vc.VoxelDef {
-            Texture    = "textures/stone.dds",
-            Hardness   = 2.5f,
-            SoundGroup = "stone"
-        });
-
-        var player = world.SpawnEntity("Player");
-        player.AddComponent(new vc.CharacterController { Speed = 5.0f });
-        player.AddComponent(new vc.Inventory { Slots = 36 });
-        player.AddComponent<MyPlayerScript>();
-    }
-
-    public override void OnUpdate(float dt)
-    {
-        world.Update(dt);
-    }
-}
-
-public class MyPlayerScript : vc.Script
-{
-    public override void OnUpdate(float dt)
-    {
-        var hit = Owner.World.Raycast(
-            origin:    Owner.Position,
-            direction: Owner.Forward,
-            maxDist:   5.0f
-        );
-        if (hit != null && vc.Input.IsJustPressed(vc.Key.E))
-            hit.Entity.Interact(Owner);
-    }
-}
-
-vc.Run<MyGame>();
-```
- 
 ### Система событий
  
 ```cpp
@@ -445,15 +361,7 @@ EventBus::Subscribe<VoxelDestroyedEvent>([](auto& e) {
 });
 EventBus::Emit(VoxelDestroyedEvent{ position, VoxelType::Stone });
 ```
- 
-```csharp
-// C#
-vc.EventBus.Subscribe<vc.VoxelDestroyedEvent>(e => {
-    SpawnParticles(e.Position, e.VoxelType);
-    AwardPoints(10);
-});
-```
- 
+
 ---
  
 ## 🏗️ Архитектура
@@ -464,10 +372,10 @@ vc.EventBus.Subscribe<vc.VoxelDestroyedEvent>(e => {
 │    Viewport │ File System │ Properties │ Build System         │
 ├───────────────────────────────────────────────────────────────┤
 │                    Game / Script Layer                        │
-│               C++ Game Code  │  C# Scripts                    │
+│               C++ Game Code  │  C++ Scripts                    │
 ├──────────────┬───────────────┬──────────────┬─────────────────┤
 │  World (MGS) │  Renderer     │  Physics     │  Audio          │
-│              │  (DX12)       │  (PhysX 5)   │  (OpenAL)       │
+│              │  (DX11)       │  (PhysX 5)   │  (OpenAL)       │
 ├──────────────┴───────────────┴──────────────┴─────────────────┤
 │                      ECS Core (entt)                          │
 ├───────────────────────────────────────────────────────────────┤
@@ -480,7 +388,7 @@ vc.EventBus.Subscribe<vc.VoxelDestroyedEvent>(e => {
  
 ```
 1.  Input Collection
-2.  C# Scripts Update
+2.  C++ Scripts Update
 3.  C++ Game Logic Update
 4.  Physics Simulation      (PhysX substeps)
 5.  VoxelCluster Mesh Rebuild (async worker threads)
@@ -507,28 +415,9 @@ vc.EventBus.Subscribe<vc.VoxelDestroyedEvent>(e => {
 | ОС | Windows 10 версия 2004+ (сборка 19041) |
 | Компилятор | MSVC 2022 (v143), C++20 |
 | CMake | ≥ 3.25 |
-| .NET SDK | 8.0+ (64-bit) |
-| GPU | DirectX 12 Feature Level 12_0 |
+| GPU | DirectX 11 |
 | VRAM | ≥ 4 GB (≥ 8 GB рекомендуется) |
 | RAM | ≥ 16 GB |
- 
-### Зависимости
- 
-| Библиотека | Источник | Назначение |
-|---|---|---|
-| DirectX 12 + Windows SDK | Windows SDK | Рендеринг |
-| NVIDIA PhysX 5 | Git submodule | Физика |
-| OpenAL Soft | vcpkg | 3D звук |
-| D3D12MemoryAllocator | submodule | Управление GPU-памятью |
-| DXC (DirectX Shader Compiler) | NuGet | Компиляция HLSL |
-| .NET 8 Runtime | NuGet | Скрипты |
-| CppSharp | NuGet | C++↔C# биндинги |
-| entt | submodule | ECS |
-| GLM | submodule | Математика |
-| spdlog | submodule | Логирование |
-| nlohmann/json | submodule | Конфиги и сцены |
-| LZ4 | submodule | Сжатие пакетов и сохранений |
-| Dear ImGui | submodule | UI редактора |
  
 ---
  
@@ -587,12 +476,12 @@ VoxelCube/
 │   └── src/
 │       ├── core/               # Engine, Loop, Config, Events
 │       ├── world/              # MGS, Cluster, VoxelRegistry, WorldGen
-│       ├── renderer/           # DX12 Renderer, Shaders, Materials
+│       ├── renderer/           # DX11 Renderer, Shaders, Materials
 │       ├── physics/            # PhysX 5 интеграция
 │       ├── audio/              # OpenAL, AudioSource, EFX
 │       ├── ecs/                # Entity, Component, System (entt)
 │       ├── network/            # Server, Client, Replication
-│       └── scripting/          # .NET embed, CppSharp биндинги
+│       └── scripting/          # c++ scripting
 │
 ├── editor/                     # VoxelCube Editor (C++ / ImGui)
 │   ├── src/
@@ -603,17 +492,17 @@ VoxelCube/
 │
 ├── runtime/                    # Минимальный рантайм для готовых игр
 │
-├── shaders/                    # HLSL шейдеры (DX12)
+├── shaders/                    # HLSL шейдеры (DX11)
 │   ├── voxel_gbuffer.hlsl
 │   ├── lighting.hlsl
 │   ├── raytracing.hlsl
 │   └── postprocess/
 │
-├── scripts/                    # Утилиты сборки (PowerShell / C#)
+├── scripts/                    # Утилиты сборки (PowerShell / C++)
 │
 ├── sandbox/                    # Тестовый проект на движке
 │   ├── game/                   # C++ логика
-│   ├── scripts/                # C# скрипты
+│   ├── scripts/                # C++ скрипты
 │   └── assets/
 │
 ├── tests/                      # Unit / Integration тесты
@@ -633,7 +522,7 @@ VoxelCube/
 ## 🗺️ Дорожная карта
  
 ### v0.1.0 — Core Engine *(в разработке)*
-- [x] DirectX 12 рендерер (базовый)
+- [x] DirectX 11 рендерер (базовый)
 - [x] Merged Geometry System (MGS) — прототип
 - [x] PhysX 5 интеграция (Rigid Body)
 - [x] OpenAL 3D звук
@@ -668,22 +557,7 @@ VoxelCube/
 - [ ] Steam Workshop интеграция
  
 ---
- 
-## 🤝 Вклад в проект
- 
-1. Форкните репозиторий
-2. Создайте ветку: `git checkout -b feature/my-feature`
-3. Закоммитьте: `git commit -m "feat: описание"`
-4. Запушьте и откройте Pull Request
- 
-Стиль кода: `.clang-format` (C++) и `.editorconfig` + `dotnet-format` (C#):
- 
-```bash
-clang-format -i **/*.cpp **/*.h
-dotnet format scripts/
-```
- 
----
+
  
 ## 📄 Лицензия
  
