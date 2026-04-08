@@ -163,6 +163,11 @@ namespace vc
             defaults.logFilePath = Path(ReadString(*value, sourcePath, "application.logging.filePath"));
         }
 
+        if (const ConfigValue* value = applicationRoot.FindPath("threading.workerCount"))
+        {
+            defaults.workerThreadCount = ReadUnsignedInteger<std::uint32_t>(*value, sourcePath, "application.threading.workerCount");
+        }
+
         if (const ConfigValue* value = applicationRoot.FindPath("timing.fixedTimeStep"))
         {
             defaults.fixedTimeStep = ReadDouble(*value, sourcePath, "application.timing.fixedTimeStep");

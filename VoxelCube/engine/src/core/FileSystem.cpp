@@ -159,6 +159,17 @@ namespace vc
         EnsureNoError(errorCode, "Failed to create directories.");
     }
 
+    std::vector<std::uint8_t> FileSystem::ReadBytes(const Path& path)
+    {
+        std::ifstream input(path, std::ios::binary);
+        if (!input.is_open())
+        {
+            throw std::runtime_error("Failed to open file for reading: " + path.string());
+        }
+
+        return std::vector<std::uint8_t>(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+    }
+
     std::string FileSystem::ReadText(const Path& path)
     {
         std::ifstream input(path, std::ios::binary);
@@ -168,6 +179,31 @@ namespace vc
         }
 
         return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+    }
+
+    void FileSystem::WriteBytes(const Path& path, const std::vector<std::uint8_t>& bytes)
+    {
+        const Path parentPath = path.parent_path();
+        if (!parentPath.empty())
+        {
+            CreateDirectories(parentPath);
+        }
+
+        std::ofstream output(path, std::ios::binary | std::ios::trunc);
+        if (!output.is_open())
+        {
+            throw std::runtime_error("Failed to open file for writing: " + path.string());
+        }
+
+        if (!bytes.empty())
+        {
+            output.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+        }
+
+        if (!output.good())
+        {
+            throw std::runtime_error("Failed to write binary file: " + path.string());
+        }
     }
 
     void FileSystem::WriteText(const Path& path, std::string_view text)

@@ -5,6 +5,7 @@
 
 #include <VoxelCube/Core/Base.hpp>
 #include <VoxelCube/Core/Events.hpp>
+#include <VoxelCube/Core/JobSystem.hpp>
 #include <VoxelCube/Core/Log.hpp>
 #include <VoxelCube/Core/Timestep.hpp>
 
@@ -25,6 +26,7 @@ namespace vc
         bool logToConsole = true;
         bool logToFile = true;
         Path logFilePath;
+        std::uint32_t workerThreadCount = 0;
         double fixedTimeStep = 1.0 / 60.0;
         std::uint32_t targetFrameRate = 0;
         double maxDeltaTime = 0.25;

@@ -35,7 +35,9 @@ namespace vc
 
         static void CreateDirectories(const Path& path);
 
+        [[nodiscard]] static std::vector<std::uint8_t> ReadBytes(const Path& path);
         [[nodiscard]] static std::string ReadText(const Path& path);
+        static void WriteBytes(const Path& path, const std::vector<std::uint8_t>& bytes);
         static void WriteText(const Path& path, std::string_view text);
 
         [[nodiscard]] static std::vector<Path> ListFiles(const Path& path, bool recursive = false);

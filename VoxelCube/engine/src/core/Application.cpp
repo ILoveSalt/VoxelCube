@@ -7,6 +7,7 @@
 
 #include <VoxelCube/Core/Events.hpp>
 #include <VoxelCube/Core/Input.hpp>
+#include <VoxelCube/Core/JobSystem.hpp>
 #include <VoxelCube/Core/Log.hpp>
 #include <VoxelCube/Core/Window.hpp>
 
@@ -39,6 +40,9 @@ namespace vc
             .enableConsole = m_specification.logToConsole,
             .enableFile = m_specification.logToFile,
             .filePath = m_specification.logFilePath
+        });
+        JobSystem::Initialize(JobSystemSpecification {
+            .workerCount = m_specification.workerThreadCount
         });
         VC_LOG_INFO("Starting application: " + m_specification.name);
 
@@ -114,6 +118,7 @@ namespace vc
         }
 
         OnShutdown();
+        JobSystem::Shutdown();
         m_window.reset();
         Input::Shutdown();
         m_eventBus.Clear();

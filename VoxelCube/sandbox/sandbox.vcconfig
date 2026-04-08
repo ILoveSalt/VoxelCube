@@ -14,6 +14,9 @@
       "enableFile": true,
       "filePath": "logs/sandbox/voxelcube_sandbox.log"
     },
+    "threading": {
+      "workerCount": 0
+    },
     "timing": {
       "fixedTimeStep": 0.0166666667,
       "targetFrameRate": 60,
