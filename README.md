@@ -1,12 +1,14 @@
 # 🧊 VoxelCube Engine
  
 > Профессиональный движок для создания воксельных игр нового поколения с собственным редактором, компилятором и мультиплеером
+> 
+> Текущий детальный прогресс разработки и фактические статусы этапов ведутся в `Что_обьяснять_ChatGPT.md`.
  
 ![Version](https://img.shields.io/badge/version-0.1.0--alpha-1A6FB5)
 ![License](https://img.shields.io/badge/license-MIT-22A7F0)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4)
-![Language](https://img.shields.io/badge/language-C%2B%2B20%20%7C%20C%23%2010-005A9E)
-![Renderer](https://img.shields.io/badge/renderer-DirectX%2012-0066CC)
+![Language](https://img.shields.io/badge/language-C%2B%2B20-005A9E)
+![Renderer](https://img.shields.io/badge/renderer-DirectX%2011-0066CC)
 ![Physics](https://img.shields.io/badge/physics-NVIDIA%20PhysX%205-76B900)
  
 ---
@@ -32,7 +34,7 @@
  
 ## 🎮 О проекте
  
-**VoxelCube Engine** — это полноценная платформа разработки воксельных игр с собственным редактором в стиле Unreal Engine, встроенным компилятором проектов, поддержкой мультиплеерных серверов и двуязычным API на **C++** и **C#**.
+**VoxelCube Engine** — это полноценная платформа разработки воксельных игр с собственным редактором в стиле Unreal Engine, встроенным компилятором проектов, поддержкой мультиплеерных серверов и API на **C++**.
  
 В основе движка лежит принципиально новая система вокселей — **Merged Geometry System (MGS)** — которая объединяет тысячи мелких воксельных объектов в единый оптимизированный меш, избавляясь от миллионов draw call'ов, характерных для Minecraft-подобных движков.
  
@@ -52,6 +54,8 @@
 ## ⚙️ Ключевые технологии
  
 ### Рендеринг — DirectX 11
+- Текущий bootstrap уже поднимает `ID3D11Device`, `ID3D11DeviceContext`, `IDXGISwapChain1`, back buffer `RTV`, depth `DSV/SRV`, DX11 context sync через `D3D11_QUERY_EVENT`, общий `DX11Buffer`-слой с `Write`, `CopyFrom`, `Map/Unmap`, `DX11ShaderCompiler` для HLSL bytecode compilation через `D3DCompile`, `DX11PipelineState` для shader/input-layout/rasterizer/blend/viewport binding, `DX11GeometryBuffer` для vertex/index upload, `DX11Texture2D` для `.dds`-загрузки, `SRV` и pixel-shader binding, а также `DX11TextureAtlas` для grid/custom regions поверх atlas texture.
+- Следующие шаги рендера: material binding, camera/view-projection data и переход от textured atlas-bootstrap triangle к реальному voxel draw path.
  
 ### Физика — NVIDIA PhysX 5
 - Полная поддержка Rigid Body Dynamics
@@ -299,7 +303,7 @@ class Player : public vc::Entity {
 │  World (MGS) │  Renderer     │  Physics     │  Audio          │
 │              │  (DX11)       │  (PhysX 5)   │  (OpenAL)       │
 ├──────────────┴───────────────┴──────────────┴─────────────────┤
-│                      ECS Core (entt)                          │
+│               ECS Core (EnTT / fallback registry)             │
 ├───────────────────────────────────────────────────────────────┤
 │                  Platform / OS Abstraction                    │
 │         Window (Win32) │ Input │ FileSystem │ Threading       │
@@ -315,13 +319,13 @@ class Player : public vc::Entity {
 4.  Physics Simulation      (PhysX substeps)
 5.  VoxelCluster Mesh Rebuild (async worker threads)
 6.  Audio 3D Update         (OpenAL)
-7.  DirectX 12 Render:
+7.  DirectX 11 Render:
     a. Depth Pre-Pass
     b. Shadow Maps
     c. G-Buffer  (Deferred Shading)
-    d. Lighting Pass  (+ DXR Ray Tracing if enabled)
+    d. Lighting Pass
     e. Transparent Voxels
-    f. Post-Processing  (SSAO, Bloom, TAA, VRS)
+    f. Post-Processing  (SSAO, Bloom, TAA)
     g. UI / HUD  (ImGui)
 8.  Present (DXGI SwapChain)
 ```
@@ -352,35 +356,24 @@ git clone --recurse-submodules https://github.com/your-username/VoxelCube.git
 cd VoxelCube
 ```
  
-### 2. Установка зависимостей
- 
-```powershell
-# Автоматическая установка через скрипт
-.\scripts\setup.ps1
- 
-# Или вручную
-vcpkg install openal-soft:x64-windows
-dotnet tool install --global CppSharp
-nuget install CppSharp
-```
- 
+### 2. Текущее состояние bootstrap
+
+На текущем этапе репозиторий собирается как минимальный engine bootstrap без внешних runtime-зависимостей. `spdlog` остаётся опциональным: если пакет доступен через CMake/vcpkg, движок подключит его автоматически; иначе используется встроенный console/file backend.
+
 ### 3. Сборка
- 
+
 ```bash
-# Редактор + движок (Debug)
-cmake --preset editor-debug
-cmake --build build/editor-debug --target VoxelCubeEditor -j8
- 
-# Runtime (Shipping)
-cmake --preset runtime-shipping
-cmake --build build/runtime-shipping --target VoxelCubeRuntime -j8
+cmake --preset default
+cmake --build --preset default
 ```
- 
-### 4. Запуск редактора
- 
+
+### 4. Запуск sandbox
+
 ```bash
-./build/editor-debug/editor/VoxelCubeEditor.exe
+./build/Debug/VoxelCubeSandbox.exe
 ```
+
+Для sandbox логирование сейчас настроено в `sandbox/sandbox.vcconfig` и пишет в `logs/sandbox/voxelcube_sandbox.log`; там же задаются параметры окна, тайминга и `threading.workerCount` для `JobSystem`.
  
 ---
  
@@ -396,12 +389,12 @@ VoxelCube/
 ├── engine/                     # Ядро движка (C++)
 │   ├── include/VoxelCube/      # Публичные заголовки
 │   └── src/
-│       ├── core/               # Engine, Loop, Config, Events
+│       ├── core/               # Engine, Loop, Config, FileSystem, Events
 │       ├── world/              # MGS, Cluster, VoxelRegistry, WorldGen
-│       ├── renderer/           # DX11 Renderer, Shaders, Materials
+│       ├── renderer/           # DX11 Device/SwapChain/RTV/Sync/Buffer/Shader/Pipeline/Geometry bootstrap, Shaders, Materials
 │       ├── physics/            # PhysX 5 интеграция
 │       ├── audio/              # OpenAL, AudioSource, EFX
-│       ├── ecs/                # Entity, Component, System (entt)
+│       ├── ecs/                # Registry, TransformComponent, CameraComponent, SystemScheduler
 │       ├── network/            # Server, Client, Replication
 │       └── scripting/          # c++ scripting
 │
@@ -423,6 +416,7 @@ VoxelCube/
 ├── scripts/                    # Утилиты сборки (PowerShell / C++)
 │
 ├── sandbox/                    # Тестовый проект на движке
+│   ├── sandbox.vcconfig        # Конфиг запуска sandbox-приложения
 │   ├── game/                   # C++ логика
 │   ├── scripts/                # C++ скрипты
 │   └── assets/
@@ -444,11 +438,12 @@ VoxelCube/
 ## 🗺️ Дорожная карта
  
 ### v0.1.0 — Core Engine *(в разработке)*
-- [x] DirectX 11 рендерер (базовый)
-- [x] Merged Geometry System (MGS) — прототип
-- [x] PhysX 5 интеграция (Rigid Body)
-- [x] OpenAL 3D звук
-- [x] ECS (entt)
+- [x] CMake bootstrap, `Application`, `Window`, `Input`, `Config`, `FileSystem`, `EventBus`, `JobSystem`, `Memory`/arena/pool allocators, `Math/Vec3`, `ECS Registry/SystemScheduler`, `TransformComponent`, `CameraComponent` с auto-detect `EnTT` и fallback backend, настраиваемый логгер с уровнями и file sink
+- [ ] DirectX 11 рендерер (device + immediate context + swapchain + render targets + context sync + buffer map/unmap + shader compile + pipeline state + geometry upload/indexed draw + DDS texture loading + texture atlas готовы, material path в работе)
+- [ ] Merged Geometry System (MGS) — прототип
+- [ ] PhysX 5 интеграция (Rigid Body)
+- [ ] OpenAL 3D звук
+- [ ] ECS gameplay-layer: higher-level gameplay systems, scene hierarchy
 - [ ] Базовый редактор (Viewport + Outliner)
 - [ ] File System Browser в редакторе
  

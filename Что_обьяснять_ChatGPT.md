@@ -38,35 +38,35 @@
 | 1.6 | Logging | spdlog интеграция, уровни, файл | ✅ Готово | Есть уровни логирования, console/file sinks, настройка через `.vcconfig` и auto-detect `spdlog` через CMake; без зависимости работает встроенный backend |
 | 1.7 | FileSystem | Абстракция FS, пути, hot-watch | ✅ Готово | Есть `FileSystem` для path/io и polling-based `FileSystemWatcher`; sandbox hot-watch для `.vcconfig` проверен |
 | 1.8 | Events | EventBus, Subscribe/Emit | ✅ Готово | Есть `EventBus` с `Subscribe/Emit`, generic `OnEvent`, события окна и ввода, sandbox использует подписки на resize/wheel/close |
-| 1.9 | Threading | JobSystem, thread pool | ⏳ | |
-| 1.10 | Memory | Custom allocator, arena, pool | ⏳ | |
+| 1.9 | Threading | JobSystem, thread pool | ✅ Готово | Есть `JobSystem` с worker pool, `JobHandle`, `Wait/WaitIdle`, `ParallelFor`, настройка worker count через `.vcconfig` и sandbox smoke-test на фоновой задаче |
+| 1.10 | Memory | Custom allocator, arena, pool | ✅ Готово | Есть `Memory` tracker, `ArenaAllocator`, `PoolAllocator`; sandbox проверяет arena reset, pool allocate/free и возврат active bytes к нулю после teardown |
 
 ### 🟣 ECS — Entity Component System
 
 | # | Подсистема | Задача | Статус | Примечания |
 |---|---|---|---|---|
-| 2.1 | ECS | entt интеграция | ⏳ | |
-| 2.2 | ECS | Entity spawn / destroy | ⏳ | |
-| 2.3 | ECS | Component add / get / remove | ⏳ | |
-| 2.4 | ECS | System регистрация и порядок | ⏳ | |
-| 2.5 | ECS | Transform компонент | ⏳ | |
-| 2.6 | ECS | Camera компонент | ⏳ | |
+| 2.1 | ECS | entt интеграция | ✅ Готово | Добавлен публичный ECS facade: CMake auto-detect `EnTT` + fallback `BootstrapRegistry`, доступный через umbrella header |
+| 2.2 | ECS | Entity spawn / destroy | ✅ Готово | Есть `CreateEntity`, `DestroyEntity`, `Wrap`, `Clear`; sandbox проверяет spawn/destroy и счётчик alive entities |
+| 2.3 | ECS | Component add / get / remove | ✅ Готово | Есть `AddComponent`, `HasComponent`, `GetComponent`, `RemoveComponent`, `View`; sandbox проверяет `Name`/`Transform`/`Health` |
+| 2.4 | ECS | System регистрация и порядок | ✅ Готово | Есть `SystemScheduler` со stage-based pipeline (`Startup`, `Update`, `FixedUpdate`, `Shutdown`), numeric order и deterministic execution order; sandbox проверяет порядок и выполнение систем |
+| 2.5 | ECS | Transform компонент | ✅ Готово | Добавлены `Vec3` и `TransformComponent` с `translation/rotationEulerDegrees/scale`, helpers `Translate/Rotate/SetUniformScale` и direction vectors `Forward/Right/Up`; sandbox использует общий компонент |
+| 2.6 | ECS | Camera компонент | ✅ Готово | Добавлен `CameraComponent` с `Perspective/Orthographic`, `primary/active`, `aspect/fov/near/far`, helpers для viewport/projection; sandbox создаёт main camera entity и обновляет её через ECS systems |
 
 ### 🔴 RENDERER — DirectX 11
 
 | # | Подсистема | Задача | Статус | Примечания |
 |---|---|---|---|---|
-| 3.1 | DX11 Init | Device, adapter, debug layer | ⏳ | |
-| 3.2 | DX11 Init | DeviceContext, immediate context | ⏳ | |
-| 3.3 | DX11 Init | SwapChain (DXGI), Present | ⏳ | |
-| 3.4 | DX11 Init | RenderTargetView, DepthStencilView, SRV | ⏳ | |
-| 3.5 | DX11 Sync | Flush, синхронизация DeviceContext | ⏳ | |
-| 3.6 | Memory | Управление буферами (Map/Unmap) | ⏳ | |
-| 3.7 | Shaders | FXC/D3DCompile компиляция HLSL шейдеров | ⏳ | |
-| 3.8 | Pipeline | Input Layout, Rasterizer, Blend State | ⏳ | |
-| 3.9 | Geometry | VertexBuffer, IndexBuffer upload | ⏳ | |
-| 3.10 | Textures | Texture2D загрузка (.dds), SRV | ⏳ | |
-| 3.11 | Textures | Texture Atlas система | ⏳ | |
+| 3.1 | DX11 Init | Device, adapter, debug layer | ✅ Готово | Есть `DX11Device`: выбор hardware adapter через DXGI, fallback на WARP, создание `ID3D11Device`, feature level detection и debug-layer fallback; sandbox проверяет bootstrap в рантайме |
+| 3.2 | DX11 Init | DeviceContext, immediate context | ✅ Готово | `DX11Device` теперь хранит и отдаёт `ID3D11DeviceContext`, пишет `context type/flags` в info, предоставляет native getters; sandbox проверяет `Immediate` context и доступность native handles |
+| 3.3 | DX11 Init | SwapChain (DXGI), Present | ✅ Готово | Есть `DX11SwapChain` на `IDXGISwapChain1`: `CreateSwapChainForHwnd`, resize, `Present`, flip-discard и present counter; sandbox проверяет DXGI bootstrap и 300 успешных presents |
+| 3.4 | DX11 Init | RenderTargetView, DepthStencilView, SRV | ✅ Готово | Есть `DX11RenderTargets`: back buffer `RTV`, typeless depth texture, `DSV` и depth `SRV`; sandbox проверяет bind/clear и считает 300 clears вместе с 300 presents |
+| 3.5 | DX11 Sync | Flush, синхронизация DeviceContext | ✅ Готово | Есть `DX11ContextSync`: `Flush` для immediate context и `WaitForGpuIdle` через `D3D11_QUERY_EVENT`; sandbox runtime-подтверждает периодические flush-вызовы и успешное ожидание `GPU idle` на shutdown без таймаута |
+| 3.6 | Memory | Управление буферами (Map/Unmap) | ✅ Готово | Есть `DX11Buffer`: generic/vertex/index/constant buffer abstraction, `Write`, `CopyFrom`, явные `Map/Unmap`, dynamic/staging/default usage и CPU read/write flags; sandbox runtime-подтверждает dynamic upload, staging readback и checksum-валидацию на кадрах 120 и 240 |
+| 3.7 | Shaders | FXC/D3DCompile компиляция HLSL шейдеров | ✅ Готово | Есть `DX11ShaderCompiler`: `CompileFromFile`, `CompileFromSource`, DX11 shader stage/profile builder, macro defines и diagnostics/warnings; sandbox runtime-подтверждает компиляцию `sandbox_bootstrap.hlsl` и inline HLSL source в валидный bytecode без warning-ов |
+| 3.8 | Pipeline | Input Layout, Rasterizer, Blend State | ✅ Готово | Есть `DX11PipelineState`: `CreateVertexShader/CreatePixelShader`, input layout из compiled vertex bytecode, rasterizer/blend state, primitive topology и viewport binding; sandbox runtime-подтверждает pipeline creation и 300 bind-вызовов на кадрах |
+| 3.9 | Geometry | VertexBuffer, IndexBuffer upload | ✅ Готово | Есть `DX11GeometryBuffer`: immutable vertex/index upload, `Bind`, `DrawIndexed`, index-format abstraction и runtime-валидация; sandbox поднимает bootstrap triangle и подтверждает 300 bind/draw вызовов на кадрах |
+| 3.10 | Textures | Texture2D загрузка (.dds), SRV | ✅ Готово | Есть `DX11Texture2D`: legacy `.dds` parsing, `ID3D11Texture2D`, `SRV`, point sampler и `BindPS`; sandbox загружает `bootstrap_checker.dds`, использует textured triangle shader path и подтверждает 300 texture bind-вызовов |
+| 3.11 | Textures | Texture Atlas система | ✅ Готово | Есть `DX11TextureAtlas`: grid/custom regions, safe UV-rects с half-texel inset, region lookup и bind поверх atlas texture; sandbox строит 4 atlas-региона и переключает textured triangle между ними в рантайме |
 | 3.12 | Rendering | Depth Pre-Pass | ⏳ | |
 | 3.13 | Rendering | G-Buffer (Deferred Shading) | ⏳ | |
 | 3.14 | Rendering | Lighting Pass (Directional + Point) | ⏳ | |
@@ -82,7 +82,7 @@
 | 3.24 | Advanced | Screen-Space Reflections (SSR) | ⏳ | |
 | 3.25 | Advanced | Async texture streaming (WIC/DDSLoader) | ⏳ | |
 
-### 🟠 WORLD & MGS — Мир и воксельная система
+### 🟠 WORLD & MGS — Мир и воксельная система 
 
 | # | Подсистема | Задача | Статус | Примечания |
 |---|---|---|---|---|
@@ -138,7 +138,7 @@
 | 6.10 | System | AudioBank (группы звуков) | ⏳ | |
 | 6.11 | System | Ambient звуковые зоны | ⏳ | |
 
-### 🔷 GAMEPLAY — Игровая логика (C++)
+### 🔷 GAMEPLAY — Игровая логика (C++) (просто база для создания игры)
 
 | # | Подсистема | Задача | Статус | Примечания |
 |---|---|---|---|---|
@@ -284,7 +284,7 @@ namespace vc { namespace world { } }
 ```
 1. Core (1.x)          — без этого ничего не работает
 2. ECS (2.x)           — нужен всем подсистемам
-3. DX11 базовый (3.1–3.9)  — до рендера MGS
+3. DX11 базовый (3.1–3.11) — до рендера MGS
 4. MGS core (4.1–4.8)  — ключевая фича движка
 5. PhysX базовый (5.1–5.9)
 6. OpenAL (6.1–6.7)
@@ -302,10 +302,21 @@ namespace vc { namespace world { } }
 
 | # | Проблема | Статус | Решение / Заметка |
 |---|---|---|---|
-| 1 | Окно пока без DX11-рендера | 🔄 В процессе | Win32 lifecycle уже поднят, но `Device/SwapChain/RTV` начнутся на этапе 3.1–3.4 |
+| 1 | DX11 слой пока не дошёл до полноценного material/voxel draw-пайплайна | 🔄 В процессе | `ID3D11Device`, `ID3D11DeviceContext`, `IDXGISwapChain1`, `RTV/DSV/SRV`, `Flush`, `WaitForGpuIdle`, `DX11Buffer` с `Map/Unmap`, HLSL compile через `DX11ShaderCompiler`, `DX11PipelineState`, `DX11GeometryBuffer`, `DX11Texture2D`, `DX11TextureAtlas`, bind/clear, `Present` и textured atlas-bootstrap triangle draw уже подняты, но material binding, camera matrices и реальный voxel draw path ещё впереди на этапах 3.12+ |
 | 2 | `spdlog` не закреплён как обязательная зависимость репозитория | 🔄 В процессе | CMake уже умеет автоматически подключать `spdlog`, но текущий bootstrap полностью работает и без него на встроенном backend с файловым логом |
 | 3 | В build-логе мелькает `pwsh.exe` warning от vcpkg | 🔄 В процессе | Сборка не падает: vcpkg автоматически откатывается на `powershell.exe`; позже можно добавить PowerShell 7 в `PATH` |
 | 4 | Hot-watch пока polling-based | 🔄 В процессе | `FileSystemWatcher` уже рабочий и подходит для dev/hot-reload; при необходимости позже можно заменить на OS-level notifications |
+| 5 | Memory tracker пока не перехватывает весь `new/delete` проекта | 🔄 В процессе | Текущий учёт покрывает аллокации через `vc::Memory`, а также backing storage `ArenaAllocator`/`PoolAllocator`; глобальный hook можно добавить позже при реальной необходимости |
+| 6 | `EnTT` пока не закреплён как обязательная зависимость репозитория | 🔄 В процессе | `CMake` уже умеет автоматически подключать `EnTT` и включать `VC_HAS_ENTT`, но на машинах без пакета движок использует встроенный `BootstrapRegistry` |
+| 7 | ECS system scheduler пока не поддерживает dependency graph между системами | 🔄 В процессе | Текущая версия уже даёт детерминированный stage/order pipeline, которого достаточно для bootstrap/gameplay-base; dependency-based scheduling можно добавить позже, если реально понадобится |
+| 8 | `TransformComponent` пока хранит только local TRS без parent/child hierarchy | 🔄 В процессе | Текущего `translation/rotationEulerDegrees/scale` достаточно для bootstrap, gameplay и будущей камеры; world transforms и scene graph можно добавить следующим слоем |
+| 9 | `CameraComponent` пока не строит полноценные view/projection matrices и frustum | 🔄 В процессе | Сейчас компонент уже хранит projection settings, aspect/FOV helpers и годится для gameplay/bootstrap; матрицы и frustum logic логично добавлять вместе с DX11 renderer |
+| 10 | DX11 слой пока поднимает только immediate context без deferred contexts | 🔄 В процессе | Для текущего bootstrap и ближайшего swapchain/present pipeline достаточно `ID3D11DeviceContext`; deferred contexts и multithreaded command recording можно добавить позже, если реально понадобятся |
+| 11 | DX11 renderer пока ограничен textured atlas-bootstrap triangle draw path без material system и voxel renderer | 🔄 В процессе | `RTV/DSV/SRV`, `Flush`, `WaitForGpuIdle`, `DX11Buffer`, `DX11ShaderCompiler`, `DX11PipelineState`, `DX11GeometryBuffer`, `DX11Texture2D` и `DX11TextureAtlas` уже созданы и проверены, sandbox рисует textured triangle через `DrawIndexed` + `SRV`, переключает atlas-регионы в рантайме, но material system и настоящий voxel renderer ещё впереди |
+| 12 | `DX11Buffer::Write` для dynamic-буферов пока рассчитан на whole-buffer update | 🔄 В процессе | Текущий слой уже покрывает безопасный bootstrap-path через `WriteDiscard` и staging readback; partial updates для dynamic buffers и более тонкая upload-стратегия могут понадобиться позже на этапах geometry/material pipeline |
+| 13 | Shader compilation пока работает как runtime bootstrap, без `.cso` cache/pipeline на этапе сборки | 🔄 В процессе | `DX11ShaderCompiler` уже даёт валидный bytecode из файла и source, чего достаточно для текущего renderer bootstrap; отдельный shader asset pipeline с precompiled `.cso` и build-step можно добавить позже, если он реально понадобится |
+| 14 | `DX11Texture2D` пока поддерживает только legacy uncompressed 32-bit DDS | 🔄 В процессе | Текущий loader уже покрывает bootstrap `.dds` path для `B8G8R8A8_UNORM/R8G8B8A8_UNORM` и этого достаточно для texture smoke-test; DX10-header DDS, BC-compression, arrays/cubemaps и mip-generation можно добавить следующим слоем при реальной необходимости |
+| 15 | `DX11TextureAtlas` пока не делает runtime packing и не связан с material system | 🔄 В процессе | Текущий atlas-слой уже покрывает grid/custom regions, safe UVs и runtime region switching поверх одной atlas texture; packing/import pipeline, material binding и voxel-atlas integration логично добавлять следующим слоем |
 
 ---
 
@@ -323,6 +334,23 @@ namespace vc { namespace world { } }
 | 2026-04-07 | Логгер доведён до рабочего состояния: уровни, console/file output, конфигурирование через `.vcconfig`, автоматическое подключение `spdlog` через CMake при наличии зависимости и проверка записи в `logs/sandbox/voxelcube_sandbox.log` | 1.6 |
 | 2026-04-07 | Реализован `FileSystem`: path utilities, чтение/запись текста, перечисление файлов и polling-based hot-watch; `Config` переведён на новый слой, sandbox watcher проверен на изменении `.vcconfig` | 1.7 |
 | 2026-04-07 | Реализован header-only `EventBus`: `Subscribe/SubscribeAny/Emit`, базовый `Event`, `OnEvent` в `Application`, события окна и ввода (`resize`, `fullscreen`, `close`, `keyboard`, `mouse`, `raw input`); sandbox переведён на подписки и runtime-проверен | 1.8 |
+| 2026-04-08 | Реализован `JobSystem`: worker thread pool, `JobHandle`, очереди задач, `Wait/WaitIdle`, `ParallelFor`, интеграция в lifecycle `Application`, настройка `threading.workerCount` через `.vcconfig`; sandbox проверен на warmup-задаче и фоне подсчёта простых чисел | 1.9 |
+| 2026-04-08 | Реализован memory-layer: `Memory` со статистикой аллокаций, `ArenaAllocator`, `PoolAllocator`, интеграция в umbrella headers и sandbox smoke-test на arena/pool с проверкой `activeBytes -> 0` после teardown | 1.10 |
+| 2026-04-08 | Реализован ECS registry-layer: публичные `Registry`/`Entity`, auto-detect `EnTT` через `CMake` и fallback `BootstrapRegistry`, sandbox smoke-test на spawn/destroy, `Add/Get/Remove` и `View` по компонентам | 2.1-2.3 |
+| 2026-04-08 | Реализован ECS system-layer: header-only `SystemScheduler`, `SystemStage` и `SystemContext`, deterministic order по stage/priority, интеграция в umbrella headers и sandbox smoke-test на `Startup/Update/FixedUpdate/Shutdown` pipeline | 2.4 |
+| 2026-04-08 | Реализован базовый transform-layer: `Vec3` и `TransformComponent` с local TRS, direction helpers и utility-методами; sandbox переведён с локального `SandboxTransformComponent` на общий ECS-компонент и runtime-проверяет movement через `Translate` | 2.5 |
+| 2026-04-08 | Реализован `CameraComponent`: `Perspective/Orthographic`, `primary/active`, aspect/FOV/clip настройки и projection helpers; sandbox создаёт main camera entity, синхронизирует aspect ratio с окном и проверяет follow/telemetry через ECS systems | 2.6 |
+| 2026-04-08 | Реализован DX11 bootstrap-layer: `DX11Device` с DXGI factory/adapter selection, hardware/WARP fallback, `ID3D11Device` creation, feature level detection и debug-layer fallback; sandbox runtime-проверяет устройство на реальном адаптере | 3.1 |
+| 2026-04-08 | Реализован `immediate context` слой для DX11: `DX11Device` хранит `ID3D11DeviceContext`, публикует native getters и context metadata (`type/flags/availability`); sandbox runtime-подтверждает `Immediate` context и готовность native device/context pair | 3.2 |
+| 2026-04-08 | Реализован DXGI swapchain-layer: `DX11SwapChain` с `CreateSwapChainForHwnd`, `Resize`, `Present`, flip-discard и счётчиком presents; sandbox runtime-подтверждает создание swap chain и успешный `Present` на 300 кадрах | 3.3 |
+| 2026-04-08 | Реализован слой render targets для DX11: `DX11RenderTargets` создаёт back buffer `RTV`, typeless depth texture, `DSV` и depth `SRV`, умеет `Bind/Clear/Resize`; sandbox runtime-подтверждает создание render targets и 300 clear-операций вместе с 300 presents | 3.4 |
+| 2026-04-08 | Реализован DX11 sync-layer: `DX11ContextSync` добавляет `Flush` для immediate context и `WaitForGpuIdle` через `D3D11_QUERY_EVENT`; sandbox runtime-подтверждает flush-счётчик в кадре и успешное ожидание `GPU idle` на shutdown без таймаута | 3.5 |
+| 2026-04-08 | Реализован DX11 buffer-layer: `DX11Buffer` добавляет generic/vertex/index/constant abstraction, `Write`, `CopyFrom` и явные `Map/Unmap` поверх `ID3D11Buffer`; sandbox runtime-подтверждает dynamic constant-buffer upload, staging readback и checksum-валидацию содержимого | 3.6 |
+| 2026-04-08 | Реализован DX11 shader compile-layer: `DX11ShaderCompiler` добавляет `CompileFromFile`, `CompileFromSource`, shader-stage/profile builder и diagnostics/warnings; sandbox runtime-подтверждает компиляцию vertex/pixel HLSL из `sandbox_bootstrap.hlsl` и inline source в валидный bytecode | 3.7 |
+| 2026-04-08 | Реализован DX11 pipeline-state layer: `DX11PipelineState` создаёт `ID3D11VertexShader/ID3D11PixelShader`, input layout, rasterizer state, blend state и bind-ит viewport/topology; sandbox runtime-подтверждает создание pipeline и 300 bind-вызовов на кадрах без ошибок | 3.8 |
+| 2026-04-08 | Реализован DX11 geometry-layer: `DX11GeometryBuffer` добавляет vertex/index upload, `Bind` и `DrawIndexed`; sandbox runtime-поднимает bootstrap triangle и подтверждает 300 geometry bind/draw вызовов вместе с `Present` без ошибок | 3.9 |
+| 2026-04-08 | Реализован DX11 texture-layer: `DX11Texture2D` добавляет `.dds`-загрузку, `ID3D11Texture2D`, `SRV`, point sampler и `BindPS`; sandbox загружает `sandbox/assets/bootstrap_checker.dds`, использует textured triangle shader path и подтверждает 300 texture bind-вызовов вместе с `Present` без ошибок | 3.10 |
+| 2026-04-08 | Реализован DX11 texture-atlas layer: `DX11TextureAtlas` добавляет grid/custom regions и safe UV-rects; sandbox строит 4 atlas-региона поверх `bootstrap_checker.dds`, переключает их на кадрах 1/76/151/226 и подтверждает 300 atlas bind-вызовов вместе с `Present` | 3.11 |
 
 ---
 
