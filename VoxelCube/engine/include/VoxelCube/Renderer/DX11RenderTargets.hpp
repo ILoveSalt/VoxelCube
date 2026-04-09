@@ -9,6 +9,7 @@
 struct ID3D11RenderTargetView;
 struct ID3D11DepthStencilView;
 struct ID3D11ShaderResourceView;
+struct ID3D11Texture2D;
 
 namespace vc
 {
@@ -39,12 +40,15 @@ namespace vc
         DX11RenderTargets& operator=(DX11RenderTargets&&) noexcept;
 
         [[nodiscard]] const DX11RenderTargetsInfo& GetInfo() const noexcept;
+        [[nodiscard]] ID3D11Texture2D* GetBackBufferTexture() const noexcept;
         [[nodiscard]] ID3D11RenderTargetView* GetRenderTargetView() const noexcept;
         [[nodiscard]] ID3D11DepthStencilView* GetDepthStencilView() const noexcept;
         [[nodiscard]] ID3D11ShaderResourceView* GetDepthShaderResourceView() const noexcept;
 
         void Resize(std::uint32_t width, std::uint32_t height);
         void Bind();
+        void BindColorOnly();
+        void BindDepthOnly();
         void Clear(
             const std::array<float, 4>& color,
             float depth = 1.0f,

@@ -66,6 +66,11 @@ namespace vc
             return m_renderTargetView.Get();
         }
 
+        [[nodiscard]] ID3D11Texture2D* GetBackBufferTexture() const noexcept
+        {
+            return m_backBuffer.Get();
+        }
+
         [[nodiscard]] ID3D11DepthStencilView* GetDepthStencilView() const noexcept
         {
             return m_depthStencilView.Get();
@@ -105,6 +110,23 @@ namespace vc
 
             ID3D11RenderTargetView* renderTargetView = m_renderTargetView.Get();
             immediateContext->OMSetRenderTargets(1, &renderTargetView, m_depthStencilView.Get());
+        }
+
+        void BindColorOnly()
+        {
+            ID3D11DeviceContext* immediateContext = m_device.GetImmediateContext();
+            VC_ASSERT(immediateContext != nullptr, "DX11 render targets require an immediate context.");
+
+            ID3D11RenderTargetView* renderTargetView = m_renderTargetView.Get();
+            immediateContext->OMSetRenderTargets(1, &renderTargetView, nullptr);
+        }
+
+        void BindDepthOnly()
+        {
+            ID3D11DeviceContext* immediateContext = m_device.GetImmediateContext();
+            VC_ASSERT(immediateContext != nullptr, "DX11 render targets require an immediate context.");
+
+            immediateContext->OMSetRenderTargets(0, nullptr, m_depthStencilView.Get());
         }
 
         void Clear(const std::array<float, 4>& color, float depth, std::uint8_t stencil)
@@ -256,6 +278,11 @@ namespace vc
         return m_impl->GetInfo();
     }
 
+    ID3D11Texture2D* DX11RenderTargets::GetBackBufferTexture() const noexcept
+    {
+        return m_impl->GetBackBufferTexture();
+    }
+
     ID3D11RenderTargetView* DX11RenderTargets::GetRenderTargetView() const noexcept
     {
         return m_impl->GetRenderTargetView();
@@ -279,6 +306,16 @@ namespace vc
     void DX11RenderTargets::Bind()
     {
         m_impl->Bind();
+    }
+
+    void DX11RenderTargets::BindColorOnly()
+    {
+        m_impl->BindColorOnly();
+    }
+
+    void DX11RenderTargets::BindDepthOnly()
+    {
+        m_impl->BindDepthOnly();
     }
 
     void DX11RenderTargets::Clear(const std::array<float, 4>& color, float depth, std::uint8_t stencil)
