@@ -313,8 +313,25 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClCompile Include="C:\VoxelCube\engine\src\core\Config.cpp" />
     <ClCompile Include="C:\VoxelCube\engine\src\core\FileSystem.cpp" />
     <ClCompile Include="C:\VoxelCube\engine\src\core\Input.cpp" />
+    <ClCompile Include="C:\VoxelCube\engine\src\core\JobSystem.cpp" />
     <ClCompile Include="C:\VoxelCube\engine\src\core\Log.cpp" />
+    <ClCompile Include="C:\VoxelCube\engine\src\core\Memory.cpp" />
     <ClCompile Include="C:\VoxelCube\engine\src\core\Window.cpp" />
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11Buffer.cpp" />
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11DepthPrePass.cpp" />
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11GBuffer.cpp" />
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11GeometryBuffer.cpp" />
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11LightingPass.cpp" />
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11PipelineState.cpp" />
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11ShaderCompiler.cpp" />
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11ContextSync.cpp" />
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11Device.cpp" />
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11RenderTargets.cpp" />
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11ShadowMap.cpp" />
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11SwapChain.cpp" />
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11TransparentPass.cpp" />
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11TextureAtlas.cpp" />
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11Texture2D.cpp" />
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>

@@ -16,11 +16,62 @@
     <ClCompile Include="C:\VoxelCube\engine\src\core\Input.cpp">
       <Filter>engine\src\core</Filter>
     </ClCompile>
+    <ClCompile Include="C:\VoxelCube\engine\src\core\JobSystem.cpp">
+      <Filter>engine\src\core</Filter>
+    </ClCompile>
     <ClCompile Include="C:\VoxelCube\engine\src\core\Log.cpp">
+      <Filter>engine\src\core</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\VoxelCube\engine\src\core\Memory.cpp">
       <Filter>engine\src\core</Filter>
     </ClCompile>
     <ClCompile Include="C:\VoxelCube\engine\src\core\Window.cpp">
       <Filter>engine\src\core</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11Buffer.cpp">
+      <Filter>engine\src\renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11DepthPrePass.cpp">
+      <Filter>engine\src\renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11GBuffer.cpp">
+      <Filter>engine\src\renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11GeometryBuffer.cpp">
+      <Filter>engine\src\renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11LightingPass.cpp">
+      <Filter>engine\src\renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11PipelineState.cpp">
+      <Filter>engine\src\renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11ShaderCompiler.cpp">
+      <Filter>engine\src\renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11ContextSync.cpp">
+      <Filter>engine\src\renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11Device.cpp">
+      <Filter>engine\src\renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11RenderTargets.cpp">
+      <Filter>engine\src\renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11ShadowMap.cpp">
+      <Filter>engine\src\renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11SwapChain.cpp">
+      <Filter>engine\src\renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11TransparentPass.cpp">
+      <Filter>engine\src\renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11TextureAtlas.cpp">
+      <Filter>engine\src\renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\VoxelCube\engine\src\renderer\DX11Texture2D.cpp">
+      <Filter>engine\src\renderer</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -35,6 +86,9 @@
     </Filter>
     <Filter Include="engine\src\core">
       <UniqueIdentifier>{0BFF8E99-D209-302A-A5D6-D4B014CE36E2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="engine\src\renderer">
+      <UniqueIdentifier>{B4C30209-C3F0-3619-BE4A-BA9D21D0E05B}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>
