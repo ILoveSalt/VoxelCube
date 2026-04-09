@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cmath>
@@ -10,6 +11,8 @@
 #include <string>
 #include <string_view>
 #include <vector>
+
+#include <d3d11.h>
 
 #include <VoxelCube/VoxelCube.hpp>
 
@@ -51,11 +54,32 @@ namespace
         float uv[2] {};
     };
 
+    struct SandboxFullscreenVertex
+    {
+        float position[2] {};
+        float uv[2] {};
+    };
+
+    using SandboxFloat4x4 = std::array<float, 16>;
+
+    struct SandboxShadowCascadeState
+    {
+        SandboxFloat4x4 worldToShadowClip {};
+        SandboxFloat4x4 worldToShadowTexture {};
+        float splitDistance = 1.0f;
+    };
+
+    struct SandboxShadowPassBlock
+    {
+        SandboxFloat4x4 worldToShadowClip {};
+    };
+
     struct SandboxAtlasTriangleVariant
     {
         std::string regionName;
         std::string uvSummary;
         vc::Scope<vc::DX11GeometryBuffer> geometry;
+        vc::Scope<vc::DX11GeometryBuffer> transparentGeometry;
     };
 
     struct SandboxGpuFrameBlock
@@ -67,6 +91,130 @@ namespace
     };
 
     static_assert(sizeof(SandboxGpuFrameBlock) == 16, "SandboxGpuFrameBlock must stay 16 bytes.");
+    static_assert(sizeof(SandboxShadowPassBlock) == 64, "SandboxShadowPassBlock must stay 64 bytes.");
+
+    [[nodiscard]] SandboxFloat4x4 MultiplyMatrices(const SandboxFloat4x4& left, const SandboxFloat4x4& right)
+    {
+        SandboxFloat4x4 result {};
+        for (std::size_t row = 0; row < 4; ++row)
+        {
+            for (std::size_t column = 0; column < 4; ++column)
+            {
+                float value = 0.0f;
+                for (std::size_t index = 0; index < 4; ++index)
+                {
+                    value += left[row * 4 + index] * right[index * 4 + column];
+                }
+
+                result[row * 4 + column] = value;
+            }
+        }
+
+        return result;
+    }
+
+    [[nodiscard]] SandboxFloat4x4 CreateLookAtMatrix(
+        const vc::Vec3& eye,
+        const vc::Vec3& target,
+        const vc::Vec3& upDirection)
+    {
+        vc::Vec3 forward = (eye - target).Normalized();
+        vc::Vec3 right = vc::Vec3::Cross(upDirection, forward).Normalized();
+        vc::Vec3 up = vc::Vec3::Cross(forward, right).Normalized();
+        if (right.IsNearlyZero() || up.IsNearlyZero())
+        {
+            right = vc::Vec3::Right();
+            up = vc::Vec3::Up();
+            forward = vc::Vec3::Forward();
+        }
+
+        return {
+            right.x, up.x, forward.x, 0.0f,
+            right.y, up.y, forward.y, 0.0f,
+            right.z, up.z, forward.z, 0.0f,
+            -vc::Vec3::Dot(right, eye),
+            -vc::Vec3::Dot(up, eye),
+            -vc::Vec3::Dot(forward, eye),
+            1.0f
+        };
+    }
+
+    [[nodiscard]] SandboxFloat4x4 CreateOrthographicMatrix(float width, float height, float nearClip, float farClip)
+    {
+        const float safeWidth = width > 1.0e-4f ? width : 1.0f;
+        const float safeHeight = height > 1.0e-4f ? height : 1.0f;
+        const float safeFarClip = farClip > nearClip + 1.0e-4f ? farClip : nearClip + 1.0f;
+        const float inverseDepth = 1.0f / (nearClip - safeFarClip);
+
+        return {
+            2.0f / safeWidth, 0.0f, 0.0f, 0.0f,
+            0.0f, 2.0f / safeHeight, 0.0f, 0.0f,
+            0.0f, 0.0f, inverseDepth, 0.0f,
+            0.0f, 0.0f, nearClip * inverseDepth, 1.0f
+        };
+    }
+
+    [[nodiscard]] SandboxFloat4x4 CreateShadowTextureTransform()
+    {
+        return {
+            0.5f, 0.0f, 0.0f, 0.0f,
+            0.0f, -0.5f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            0.5f, 0.5f, 0.0f, 1.0f
+        };
+    }
+
+    [[nodiscard]] vc::DX11DirectionalLightParameters BuildSandboxDirectionalLightParameters(std::uint64_t frameIndex)
+    {
+        const float time = static_cast<float>(frameIndex) * 0.01f;
+        vc::DX11DirectionalLightParameters parameters {};
+        parameters.direction = {
+            0.34f + 0.08f * std::sin(time * 0.37f + 0.2f),
+            -0.82f,
+            -0.52f + 0.06f * std::cos(time * 0.21f + 0.5f)
+        };
+        parameters.intensity = 1.15f + 0.12f * std::sin(time * 0.31f + 0.4f);
+        parameters.color = { 1.00f, 0.94f, 0.85f };
+        parameters.ambientIntensity = 0.22f + 0.04f * std::cos(time * 0.19f + 0.1f);
+        return parameters;
+    }
+
+    [[nodiscard]] std::array<SandboxShadowCascadeState, vc::DX11ShadowCascadeCount> BuildSandboxShadowCascadeStates(
+        const vc::Vec3& lightDirection)
+    {
+        constexpr std::array<float, vc::DX11ShadowCascadeCount> kHalfExtents { 0.95f, 1.80f };
+        constexpr std::array<float, vc::DX11ShadowCascadeCount> kSplitDistances { 0.45f, 1.10f };
+
+        const vc::Vec3 sceneCenter(0.0f, -0.18f, 0.38f);
+        const vc::Vec3 normalizedDirection = lightDirection.IsNearlyZero()
+            ? vc::Vec3(0.34f, -0.82f, -0.52f).Normalized()
+            : lightDirection.Normalized();
+        const vc::Vec3 upDirection = std::fabs(vc::Vec3::Dot(normalizedDirection, vc::Vec3::Up())) > 0.95f
+            ? vc::Vec3::Forward()
+            : vc::Vec3::Up();
+        const SandboxFloat4x4 textureTransform = CreateShadowTextureTransform();
+
+        std::array<SandboxShadowCascadeState, vc::DX11ShadowCascadeCount> cascadeStates {};
+        for (std::size_t cascadeIndex = 0; cascadeIndex < cascadeStates.size(); ++cascadeIndex)
+        {
+            const float halfExtent = kHalfExtents[cascadeIndex];
+            const float depthRange = halfExtent * 4.0f;
+            const vc::Vec3 eye = sceneCenter - normalizedDirection * (halfExtent * 2.25f);
+            const SandboxFloat4x4 view = CreateLookAtMatrix(eye, sceneCenter, upDirection);
+            const SandboxFloat4x4 projection = CreateOrthographicMatrix(
+                halfExtent * 2.0f,
+                halfExtent * 2.0f,
+                0.1f,
+                depthRange);
+            cascadeStates[cascadeIndex].worldToShadowClip = MultiplyMatrices(view, projection);
+            cascadeStates[cascadeIndex].worldToShadowTexture = MultiplyMatrices(
+                cascadeStates[cascadeIndex].worldToShadowClip,
+                textureTransform);
+            cascadeStates[cascadeIndex].splitDistance = kSplitDistances[cascadeIndex];
+        }
+
+        return cascadeStates;
+    }
 
     [[nodiscard]] std::uint32_t QuantizeAspectRatio(float aspectRatio)
     {
@@ -448,10 +596,44 @@ protected:
             std::to_string(renderTargetsInfo.height) +
             ", ready=" +
             std::string(renderTargetsInfo.ready ? "true" : "false"));
+        InitializeDx11ShadowMap();
+        m_dx11GBuffer = vc::CreateScope<vc::DX11GBuffer>(*m_dx11Device, *m_dx11RenderTargets);
+        const vc::DX11GBufferInfo& gBufferInfo = m_dx11GBuffer->GetInfo();
+        VC_LOG_INFO(
+            "Sandbox DX11 G-buffer: targets=" +
+            std::to_string(gBufferInfo.renderTargetCount) +
+            ", albedo=" +
+            gBufferInfo.albedoFormat +
+            ", normal=" +
+            gBufferInfo.normalFormat +
+            ", material=" +
+            gBufferInfo.materialFormat +
+            ", size=" +
+            std::to_string(gBufferInfo.width) +
+            "x" +
+            std::to_string(gBufferInfo.height));
+        m_dx11DepthPrePass = vc::CreateScope<vc::DX11DepthPrePass>(*m_dx11Device, *m_dx11RenderTargets);
+        const vc::DX11DepthPrePassInfo& depthPrePassInfo = m_dx11DepthPrePass->GetInfo();
+        VC_LOG_INFO(
+            "Sandbox DX11 depth pre-pass: ready=" +
+            std::string(depthPrePassInfo.ready ? "true" : "false") +
+            ", prePassDepth=" +
+            depthPrePassInfo.prePassDepthFunction +
+            ", colorPassDepth=" +
+            depthPrePassInfo.colorPassDepthFunction);
+        InitializeDx11ShadowPipelineState();
+        InitializeDx11ShadowPassBuffer();
         InitializeDx11PipelineState();
         InitializeDx11BootstrapTexture();
         InitializeDx11TextureAtlas();
         InitializeDx11Geometry();
+        InitializeDx11LightingPipelineState();
+        InitializeDx11LightingGeometry();
+        InitializeDx11SsaoPipelineState();
+        InitializeDx11SsaoPass();
+        InitializeDx11LightingPass();
+        InitializeDx11TransparentPipelineState();
+        InitializeDx11TransparentPass();
 
         VC_LOG_INFO("ECS backend: " + std::string(m_registry.GetBackendName()));
 
@@ -718,20 +900,108 @@ protected:
                 0.24f + 0.08f * std::sin(time * 0.5f + 0.6f),
                 1.0f
             };
-            m_dx11RenderTargets->Bind();
             m_dx11RenderTargets->Clear(clearColor);
-            if (m_dx11PipelineState)
+            const SandboxAtlasTriangleVariant* activeVariant = GetActiveDx11AtlasVariant();
+
+            if (m_dx11DepthPrePass
+                && m_dx11GBuffer
+                && m_dx11SsaoPass
+                && m_dx11SsaoPipelineState
+                && m_dx11PipelineState
+                && m_dx11LightingPass
+                && m_dx11LightingPipelineState
+                && m_dx11LightingGeometry
+                && activeVariant != nullptr)
             {
-                m_dx11PipelineState->Bind();
-            }
-            if (m_dx11TextureAtlas)
-            {
-                m_dx11TextureAtlas->BindPS(0);
-            }
-            if (const SandboxAtlasTriangleVariant* activeVariant = GetActiveDx11AtlasVariant())
-            {
+                if (m_dx11ShadowMap && m_dx11ShadowPipelineState && m_dx11ShadowPassBuffer && m_dx11Device)
+                {
+                    UpdateDx11ShadowPassData(nextFrame);
+                    m_dx11ShadowMap->Clear();
+
+                    ID3D11DeviceContext* immediateContext = m_dx11Device->GetImmediateContext();
+                    VC_ASSERT(immediateContext != nullptr, "DX11 shadow pass requires an immediate context.");
+
+                    for (std::uint32_t cascadeIndex = 0;
+                         cascadeIndex < m_dx11ShadowMap->GetInfo().cascadeCount && cascadeIndex < m_shadowCascadeStates.size();
+                         ++cascadeIndex)
+                    {
+                        SandboxShadowPassBlock shadowPassBlock {};
+                        shadowPassBlock.worldToShadowClip = m_shadowCascadeStates[cascadeIndex].worldToShadowClip;
+                        m_dx11ShadowPassBuffer->Write(&shadowPassBlock, sizeof(shadowPassBlock));
+
+                        m_dx11ShadowMap->BindCascade(cascadeIndex);
+                        m_dx11ShadowPipelineState->Bind();
+
+                        ID3D11Buffer* shadowConstantBuffer = m_dx11ShadowPassBuffer->GetNativeBuffer();
+                        VC_ASSERT(shadowConstantBuffer != nullptr, "DX11 shadow pass constant buffer is not ready.");
+                        immediateContext->VSSetConstantBuffers(0, 1, &shadowConstantBuffer);
+
+                        activeVariant->geometry->Bind();
+                        activeVariant->geometry->DrawIndexed();
+                    }
+
+                    ID3D11Buffer* nullShadowConstantBuffer = nullptr;
+                    immediateContext->VSSetConstantBuffers(0, 1, &nullShadowConstantBuffer);
+                }
+
+                m_dx11DepthPrePass->BeginDepthPass(*m_dx11PipelineState);
                 activeVariant->geometry->Bind();
                 activeVariant->geometry->DrawIndexed();
+
+                static constexpr std::array<float, 4> kGBufferAlbedoClear { 0.0f, 0.0f, 0.0f, 0.0f };
+                static constexpr std::array<float, 4> kGBufferNormalClear { 0.5f, 0.5f, 1.0f, 0.0f };
+                static constexpr std::array<float, 4> kGBufferMaterialClear { 0.0f, 0.0f, 0.0f, 0.0f };
+                m_dx11GBuffer->Clear(kGBufferAlbedoClear, kGBufferNormalClear, kGBufferMaterialClear);
+                m_dx11GBuffer->Bind();
+                m_dx11DepthPrePass->BeginColorPass(*m_dx11PipelineState);
+                if (m_dx11TextureAtlas)
+                {
+                    m_dx11TextureAtlas->BindPS(0);
+                }
+                activeVariant->geometry->Bind();
+                activeVariant->geometry->DrawIndexed();
+
+                UpdateDx11SsaoParameters(nextFrame);
+                m_dx11SsaoPass->Clear();
+                m_dx11SsaoPass->Begin(*m_dx11SsaoPipelineState);
+                m_dx11LightingGeometry->Bind();
+                m_dx11LightingGeometry->DrawIndexed();
+                m_dx11SsaoPass->End();
+
+                UpdateDx11LightingPassParameters(nextFrame);
+                m_dx11LightingPass->Begin(*m_dx11LightingPipelineState);
+                m_dx11LightingGeometry->Bind();
+                m_dx11LightingGeometry->DrawIndexed();
+                m_dx11LightingPass->End();
+
+                if (m_dx11TransparentPass
+                    && m_dx11TransparentPipelineState
+                    && m_dx11TextureAtlas
+                    && activeVariant->transparentGeometry)
+                {
+                    m_dx11TransparentPass->Begin(*m_dx11TransparentPipelineState);
+                    m_dx11TextureAtlas->BindPS(0);
+                    activeVariant->transparentGeometry->Bind();
+                    activeVariant->transparentGeometry->DrawIndexed();
+                    m_dx11TransparentPass->End();
+                }
+            }
+            else
+            {
+                m_dx11RenderTargets->Bind();
+                if (m_dx11PipelineState)
+                {
+                    m_dx11PipelineState->Bind();
+                }
+                if (m_dx11TextureAtlas)
+                {
+                    m_dx11TextureAtlas->BindPS(0);
+                }
+                if (activeVariant != nullptr)
+                {
+                    activeVariant->geometry->Bind();
+                    activeVariant->geometry->DrawIndexed();
+                }
             }
 
             const bool presented = m_dx11SwapChain->Present();
@@ -752,22 +1022,64 @@ protected:
                     std::to_string(m_dx11DynamicBuffer ? m_dx11DynamicBuffer->GetInfo().writeCount : 0) +
                     ", readback copies=" +
                     std::to_string(m_dx11ReadbackBuffer ? m_dx11ReadbackBuffer->GetInfo().copyCount : 0) +
+                    ", depth passes=" +
+                    std::to_string(m_dx11DepthPrePass ? m_dx11DepthPrePass->GetInfo().depthPassCount : 0) +
+                    ", color passes=" +
+                    std::to_string(m_dx11DepthPrePass ? m_dx11DepthPrePass->GetInfo().colorPassCount : 0) +
+                    ", gbuffer binds=" +
+                    std::to_string(m_dx11GBuffer ? m_dx11GBuffer->GetInfo().bindCount : 0) +
+                    ", gbuffer clears=" +
+                    std::to_string(m_dx11GBuffer ? m_dx11GBuffer->GetInfo().clearCount : 0) +
+                    ", ssao passes=" +
+                    std::to_string(m_dx11SsaoPass ? m_dx11SsaoPass->GetInfo().passCount : 0) +
+                    ", ssao clears=" +
+                    std::to_string(m_dx11SsaoPass ? m_dx11SsaoPass->GetInfo().clearCount : 0) +
+                    ", ssao updates=" +
+                    std::to_string(m_dx11SsaoPass ? m_dx11SsaoPass->GetInfo().parameterUpdateCount : 0) +
+                    ", shadow clears=" +
+                    std::to_string(m_dx11ShadowMap ? m_dx11ShadowMap->GetInfo().clearCount : 0) +
+                    ", shadow passes=" +
+                    std::to_string(m_dx11ShadowMap ? m_dx11ShadowMap->GetInfo().shadowPassCount : 0) +
+                    ", lighting passes=" +
+                    std::to_string(m_dx11LightingPass ? m_dx11LightingPass->GetInfo().passCount : 0) +
+                    ", lighting updates=" +
+                    std::to_string(m_dx11LightingPass ? m_dx11LightingPass->GetInfo().parameterUpdateCount : 0) +
                     ", readback frame=" +
                     std::to_string(m_lastGpuFrameBlock.frameIndex) +
                     ", checksumValid=" +
                     std::string(m_lastGpuFrameBlockValid ? "true" : "false") +
                     ", pipeline binds=" +
                     std::to_string(m_dx11PipelineState ? m_dx11PipelineState->GetInfo().bindCount : 0) +
+                    ", shadow pipeline binds=" +
+                    std::to_string(m_dx11ShadowPipelineState ? m_dx11ShadowPipelineState->GetInfo().bindCount : 0) +
+                    ", ssao pipeline binds=" +
+                    std::to_string(m_dx11SsaoPipelineState ? m_dx11SsaoPipelineState->GetInfo().bindCount : 0) +
+                    ", lighting pipeline binds=" +
+                    std::to_string(m_dx11LightingPipelineState ? m_dx11LightingPipelineState->GetInfo().bindCount : 0) +
+                    ", transparent passes=" +
+                    std::to_string(m_dx11TransparentPass ? m_dx11TransparentPass->GetInfo().passCount : 0) +
+                    ", transparent pipeline binds=" +
+                    std::to_string(m_dx11TransparentPipelineState ? m_dx11TransparentPipelineState->GetInfo().bindCount : 0) +
                     ", atlas binds=" +
                     std::to_string(m_dx11TextureAtlas ? m_dx11TextureAtlas->GetInfo().bindCount : 0) +
                     ", texture binds=" +
                     std::to_string(m_dx11BootstrapTexture ? m_dx11BootstrapTexture->GetInfo().bindCount : 0) +
+                    ", shadow buffer writes=" +
+                    std::to_string(m_dx11ShadowPassBuffer ? m_dx11ShadowPassBuffer->GetInfo().writeCount : 0) +
                     ", atlas region=" +
                     std::string(GetActiveDx11AtlasVariant() != nullptr ? GetActiveDx11AtlasVariant()->regionName : "none") +
                     ", geometry binds=" +
                     std::to_string(GetDx11AtlasGeometryBindCount()) +
                     ", geometry draws=" +
                     std::to_string(GetDx11AtlasGeometryDrawCount()) +
+                    ", lighting geometry binds=" +
+                    std::to_string(m_dx11LightingGeometry ? m_dx11LightingGeometry->GetInfo().bindCount : 0) +
+                    ", lighting geometry draws=" +
+                    std::to_string(m_dx11LightingGeometry ? m_dx11LightingGeometry->GetInfo().drawCount : 0) +
+                    ", transparent geometry binds=" +
+                    std::to_string(GetDx11TransparentGeometryBindCount()) +
+                    ", transparent geometry draws=" +
+                    std::to_string(GetDx11TransparentGeometryDrawCount()) +
                     ", viewport=" +
                     std::to_string(
                         static_cast<std::uint32_t>(m_dx11PipelineState ? m_dx11PipelineState->GetInfo().viewportWidth : 0.0f)) +
@@ -799,9 +1111,38 @@ protected:
             m_dx11SwapChain->Resize(width, height);
         }
 
+        if (m_dx11GBuffer)
+        {
+            m_dx11GBuffer->Resize(width, height);
+        }
+
         if (m_dx11PipelineState)
         {
             m_dx11PipelineState->SetViewport(vc::DX11Viewport {
+                .x = 0.0f,
+                .y = 0.0f,
+                .width = static_cast<float>(width),
+                .height = static_cast<float>(height),
+                .minDepth = 0.0f,
+                .maxDepth = 1.0f
+            });
+        }
+
+        if (m_dx11LightingPipelineState)
+        {
+            m_dx11LightingPipelineState->SetViewport(vc::DX11Viewport {
+                .x = 0.0f,
+                .y = 0.0f,
+                .width = static_cast<float>(width),
+                .height = static_cast<float>(height),
+                .minDepth = 0.0f,
+                .maxDepth = 1.0f
+            });
+        }
+
+        if (m_dx11TransparentPipelineState)
+        {
+            m_dx11TransparentPipelineState->SetViewport(vc::DX11Viewport {
                 .x = 0.0f,
                 .y = 0.0f,
                 .width = static_cast<float>(width),
@@ -843,7 +1184,7 @@ protected:
         {
             const vc::DX11PipelineStateInfo& pipelineInfo = m_dx11PipelineState->GetInfo();
             VC_LOG_INFO(
-                "DX11 pipeline stats before shutdown: binds=" +
+                "DX11 G-buffer pipeline stats before shutdown: binds=" +
                 std::to_string(pipelineInfo.bindCount) +
                 ", inputElements=" +
                 std::to_string(pipelineInfo.inputElementCount) +
@@ -859,6 +1200,162 @@ protected:
                 std::to_string(static_cast<std::uint32_t>(pipelineInfo.viewportWidth)) +
                 "x" +
                 std::to_string(static_cast<std::uint32_t>(pipelineInfo.viewportHeight)));
+        }
+        if (m_dx11LightingPipelineState)
+        {
+            const vc::DX11PipelineStateInfo& pipelineInfo = m_dx11LightingPipelineState->GetInfo();
+            VC_LOG_INFO(
+                "DX11 lighting pipeline stats before shutdown: binds=" +
+                std::to_string(pipelineInfo.bindCount) +
+                ", inputElements=" +
+                std::to_string(pipelineInfo.inputElementCount) +
+                ", topology=" +
+                pipelineInfo.primitiveTopology +
+                ", rasterizer=" +
+                pipelineInfo.fillMode +
+                "/" +
+                pipelineInfo.cullMode +
+                ", blending=" +
+                std::string(pipelineInfo.alphaBlendingEnabled ? "true" : "false") +
+                ", viewport=" +
+                std::to_string(static_cast<std::uint32_t>(pipelineInfo.viewportWidth)) +
+                "x" +
+                std::to_string(static_cast<std::uint32_t>(pipelineInfo.viewportHeight)));
+        }
+        if (m_dx11ShadowPipelineState)
+        {
+            const vc::DX11PipelineStateInfo& pipelineInfo = m_dx11ShadowPipelineState->GetInfo();
+            VC_LOG_INFO(
+                "DX11 shadow pipeline stats before shutdown: binds=" +
+                std::to_string(pipelineInfo.bindCount) +
+                ", inputElements=" +
+                std::to_string(pipelineInfo.inputElementCount) +
+                ", topology=" +
+                pipelineInfo.primitiveTopology +
+                ", rasterizer=" +
+                pipelineInfo.fillMode +
+                "/" +
+                pipelineInfo.cullMode +
+                ", blending=" +
+                std::string(pipelineInfo.alphaBlendingEnabled ? "true" : "false") +
+                ", viewport=" +
+                std::to_string(static_cast<std::uint32_t>(pipelineInfo.viewportWidth)) +
+                "x" +
+                std::to_string(static_cast<std::uint32_t>(pipelineInfo.viewportHeight)));
+        }
+        if (m_dx11TransparentPipelineState)
+        {
+            const vc::DX11PipelineStateInfo& pipelineInfo = m_dx11TransparentPipelineState->GetInfo();
+            VC_LOG_INFO(
+                "DX11 transparent pipeline stats before shutdown: binds=" +
+                std::to_string(pipelineInfo.bindCount) +
+                ", inputElements=" +
+                std::to_string(pipelineInfo.inputElementCount) +
+                ", topology=" +
+                pipelineInfo.primitiveTopology +
+                ", rasterizer=" +
+                pipelineInfo.fillMode +
+                "/" +
+                pipelineInfo.cullMode +
+                ", blending=" +
+                std::string(pipelineInfo.alphaBlendingEnabled ? "true" : "false") +
+                ", viewport=" +
+                std::to_string(static_cast<std::uint32_t>(pipelineInfo.viewportWidth)) +
+                "x" +
+                std::to_string(static_cast<std::uint32_t>(pipelineInfo.viewportHeight)));
+        }
+        if (m_dx11DepthPrePass)
+        {
+            const vc::DX11DepthPrePassInfo& depthPrePassInfo = m_dx11DepthPrePass->GetInfo();
+            VC_LOG_INFO(
+                "DX11 depth pre-pass stats before shutdown: depthPasses=" +
+                std::to_string(depthPrePassInfo.depthPassCount) +
+                ", colorPasses=" +
+                std::to_string(depthPrePassInfo.colorPassCount) +
+                ", prePassDepth=" +
+                depthPrePassInfo.prePassDepthFunction +
+                ", colorPassDepth=" +
+                depthPrePassInfo.colorPassDepthFunction);
+        }
+        if (m_dx11GBuffer)
+        {
+            const vc::DX11GBufferInfo& gBufferInfo = m_dx11GBuffer->GetInfo();
+            VC_LOG_INFO(
+                "DX11 G-buffer stats before shutdown: binds=" +
+                std::to_string(gBufferInfo.bindCount) +
+                ", clears=" +
+                std::to_string(gBufferInfo.clearCount) +
+                ", previewCopies=" +
+                std::to_string(gBufferInfo.previewCopyCount) +
+                ", targets=" +
+                std::to_string(gBufferInfo.renderTargetCount) +
+                ", albedo=" +
+                gBufferInfo.albedoFormat +
+                ", normal=" +
+                gBufferInfo.normalFormat +
+                ", material=" +
+                gBufferInfo.materialFormat +
+                ", size=" +
+                std::to_string(gBufferInfo.width) +
+                "x" +
+                std::to_string(gBufferInfo.height));
+        }
+        if (m_dx11LightingPass)
+        {
+            const vc::DX11LightingPassInfo& lightingPassInfo = m_dx11LightingPass->GetInfo();
+            VC_LOG_INFO(
+                "DX11 lighting pass stats before shutdown: passes=" +
+                std::to_string(lightingPassInfo.passCount) +
+                ", inputBinds=" +
+                std::to_string(lightingPassInfo.inputBindCount) +
+                ", parameterUpdates=" +
+                std::to_string(lightingPassInfo.parameterUpdateCount) +
+                ", inputs=" +
+                std::to_string(lightingPassInfo.gBufferInputCount) +
+                ", albedo=" +
+                lightingPassInfo.albedoFormat +
+                ", normal=" +
+                lightingPassInfo.normalFormat +
+                ", material=" +
+                lightingPassInfo.materialFormat +
+                ", depth=" +
+                lightingPassInfo.depthFormat +
+                ", sampler=" +
+                lightingPassInfo.samplerFilter);
+        }
+        if (m_dx11TransparentPass)
+        {
+            const vc::DX11TransparentPassInfo& transparentPassInfo = m_dx11TransparentPass->GetInfo();
+            VC_LOG_INFO(
+                "DX11 transparent pass stats before shutdown: passes=" +
+                std::to_string(transparentPassInfo.passCount) +
+                ", depth=" +
+                transparentPassInfo.depthFunction +
+                ", depthWrites=" +
+                std::string(transparentPassInfo.depthWritesEnabled ? "true" : "false") +
+                ", alphaBlendRequired=" +
+                std::string(transparentPassInfo.alphaBlendingRequired ? "true" : "false"));
+        }
+        if (m_dx11ShadowMap)
+        {
+            const vc::DX11ShadowMapInfo& shadowMapInfo = m_dx11ShadowMap->GetInfo();
+            VC_LOG_INFO(
+                "DX11 shadow map stats before shutdown: binds=" +
+                std::to_string(shadowMapInfo.bindCount) +
+                ", clears=" +
+                std::to_string(shadowMapInfo.clearCount) +
+                ", shadowPasses=" +
+                std::to_string(shadowMapInfo.shadowPassCount) +
+                ", cascades=" +
+                std::to_string(shadowMapInfo.cascadeCount) +
+                ", size=" +
+                std::to_string(shadowMapInfo.width) +
+                "x" +
+                std::to_string(shadowMapInfo.height) +
+                ", dsv=" +
+                shadowMapInfo.depthStencilFormat +
+                ", srv=" +
+                shadowMapInfo.shaderResourceFormat);
         }
         if (!m_dx11AtlasTriangleVariants.empty())
         {
@@ -881,6 +1378,42 @@ protected:
                 geometryInfo.indexFormat +
                 ", activeRegion=" +
                 std::string(activeVariant != nullptr ? activeVariant->regionName : "none"));
+        }
+        if (!m_dx11AtlasTriangleVariants.empty() && m_dx11AtlasTriangleVariants.front().transparentGeometry)
+        {
+            const vc::DX11GeometryBufferInfo& geometryInfo = m_dx11AtlasTriangleVariants.front().transparentGeometry->GetInfo();
+            VC_LOG_INFO(
+                "DX11 transparent geometry stats before shutdown: binds=" +
+                std::to_string(GetDx11TransparentGeometryBindCount()) +
+                ", draws=" +
+                std::to_string(GetDx11TransparentGeometryDrawCount()) +
+                ", variants=" +
+                std::to_string(m_dx11AtlasTriangleVariants.size()) +
+                ", vertices=" +
+                std::to_string(geometryInfo.vertexCount) +
+                ", indices=" +
+                std::to_string(geometryInfo.indexCount) +
+                ", vertexStride=" +
+                std::to_string(geometryInfo.vertexStride) +
+                ", indexFormat=" +
+                geometryInfo.indexFormat);
+        }
+        if (m_dx11LightingGeometry)
+        {
+            const vc::DX11GeometryBufferInfo& geometryInfo = m_dx11LightingGeometry->GetInfo();
+            VC_LOG_INFO(
+                "DX11 lighting geometry stats before shutdown: binds=" +
+                std::to_string(geometryInfo.bindCount) +
+                ", draws=" +
+                std::to_string(geometryInfo.drawCount) +
+                ", vertices=" +
+                std::to_string(geometryInfo.vertexCount) +
+                ", indices=" +
+                std::to_string(geometryInfo.indexCount) +
+                ", vertexStride=" +
+                std::to_string(geometryInfo.vertexStride) +
+                ", indexFormat=" +
+                geometryInfo.indexFormat);
         }
         if (m_dx11TextureAtlas)
         {
@@ -945,6 +1478,17 @@ protected:
                 ", checksumValid=" +
                 std::string(m_lastGpuFrameBlockValid ? "true" : "false"));
         }
+        if (m_dx11ShadowPassBuffer)
+        {
+            const vc::DX11BufferInfo& bufferInfo = m_dx11ShadowPassBuffer->GetInfo();
+            VC_LOG_INFO(
+                "DX11 shadow buffer stats before shutdown: writes=" +
+                std::to_string(bufferInfo.writeCount) +
+                ", maps=" +
+                std::to_string(bufferInfo.mapCount) +
+                ", lastMapMode=" +
+                bufferInfo.lastMapMode);
+        }
         if (m_dx11ContextSync)
         {
             const bool gpuIdle = m_dx11ContextSync->WaitForGpuIdle(2000);
@@ -966,9 +1510,19 @@ protected:
                 std::to_string(contextSyncInfo.maxWaitDurationMilliseconds));
         }
         m_dx11AtlasTriangleVariants.clear();
+        m_dx11LightingGeometry.reset();
         m_dx11TextureAtlas.reset();
         m_dx11BootstrapTexture.reset();
+        m_dx11ShadowPassBuffer.reset();
+        m_dx11ShadowPipelineState.reset();
+        m_dx11ShadowMap.reset();
+        m_dx11TransparentPass.reset();
+        m_dx11TransparentPipelineState.reset();
+        m_dx11LightingPipelineState.reset();
         m_dx11PipelineState.reset();
+        m_dx11LightingPass.reset();
+        m_dx11DepthPrePass.reset();
+        m_dx11GBuffer.reset();
         m_dx11ReadbackBuffer.reset();
         m_dx11DynamicBuffer.reset();
         m_dx11ContextSync.reset();
@@ -1282,10 +1836,52 @@ float4 SandboxInlinePixelMain() : SV_TARGET
         vertexSpecification.stage = vc::DX11ShaderStage::Vertex;
         m_vertexShaderBytecode = vc::DX11ShaderCompiler::CompileFromFile(shaderPath, std::move(vertexSpecification));
 
-        vc::DX11ShaderCompileSpecification pixelSpecification {};
-        pixelSpecification.entryPoint = "SandboxPixelMain";
-        pixelSpecification.stage = vc::DX11ShaderStage::Pixel;
-        m_pixelShaderBytecode = vc::DX11ShaderCompiler::CompileFromFile(shaderPath, std::move(pixelSpecification));
+        vc::DX11ShaderCompileSpecification gBufferPixelSpecification {};
+        gBufferPixelSpecification.entryPoint = "SandboxGBufferPixelMain";
+        gBufferPixelSpecification.stage = vc::DX11ShaderStage::Pixel;
+        m_pixelShaderBytecode = vc::DX11ShaderCompiler::CompileFromFile(shaderPath, std::move(gBufferPixelSpecification));
+
+        vc::DX11ShaderCompileSpecification lightingVertexSpecification {};
+        lightingVertexSpecification.entryPoint = "SandboxLightingVertexMain";
+        lightingVertexSpecification.stage = vc::DX11ShaderStage::Vertex;
+        m_lightingVertexShaderBytecode = vc::DX11ShaderCompiler::CompileFromFile(
+            shaderPath,
+            std::move(lightingVertexSpecification));
+
+        vc::DX11ShaderCompileSpecification lightingPixelSpecification {};
+        lightingPixelSpecification.entryPoint = "SandboxLightingPixelMain";
+        lightingPixelSpecification.stage = vc::DX11ShaderStage::Pixel;
+        m_lightingPixelShaderBytecode = vc::DX11ShaderCompiler::CompileFromFile(
+            shaderPath,
+            std::move(lightingPixelSpecification));
+
+        vc::DX11ShaderCompileSpecification ssaoPixelSpecification {};
+        ssaoPixelSpecification.entryPoint = "SandboxSsaoPixelMain";
+        ssaoPixelSpecification.stage = vc::DX11ShaderStage::Pixel;
+        m_ssaoPixelShaderBytecode = vc::DX11ShaderCompiler::CompileFromFile(
+            shaderPath,
+            std::move(ssaoPixelSpecification));
+
+        vc::DX11ShaderCompileSpecification transparentPixelSpecification {};
+        transparentPixelSpecification.entryPoint = "SandboxTransparentPixelMain";
+        transparentPixelSpecification.stage = vc::DX11ShaderStage::Pixel;
+        m_transparentPixelShaderBytecode = vc::DX11ShaderCompiler::CompileFromFile(
+            shaderPath,
+            std::move(transparentPixelSpecification));
+
+        vc::DX11ShaderCompileSpecification shadowVertexSpecification {};
+        shadowVertexSpecification.entryPoint = "SandboxShadowVertexMain";
+        shadowVertexSpecification.stage = vc::DX11ShaderStage::Vertex;
+        m_shadowVertexShaderBytecode = vc::DX11ShaderCompiler::CompileFromFile(
+            shaderPath,
+            std::move(shadowVertexSpecification));
+
+        vc::DX11ShaderCompileSpecification shadowPixelSpecification {};
+        shadowPixelSpecification.entryPoint = "SandboxShadowPixelMain";
+        shadowPixelSpecification.stage = vc::DX11ShaderStage::Pixel;
+        m_shadowPixelShaderBytecode = vc::DX11ShaderCompiler::CompileFromFile(
+            shaderPath,
+            std::move(shadowPixelSpecification));
 
         vc::DX11ShaderCompileSpecification inlinePixelSpecification {};
         inlinePixelSpecification.sourceName = "SandboxInlinePixel";
@@ -1298,22 +1894,64 @@ float4 SandboxInlinePixelMain() : SV_TARGET
 
         VC_ASSERT(m_vertexShaderBytecode.IsValid(), "Sandbox vertex shader bytecode is invalid.");
         VC_ASSERT(m_pixelShaderBytecode.IsValid(), "Sandbox pixel shader bytecode is invalid.");
+        VC_ASSERT(m_lightingVertexShaderBytecode.IsValid(), "Sandbox lighting vertex shader bytecode is invalid.");
+        VC_ASSERT(m_lightingPixelShaderBytecode.IsValid(), "Sandbox lighting pixel shader bytecode is invalid.");
+        VC_ASSERT(m_ssaoPixelShaderBytecode.IsValid(), "Sandbox SSAO pixel shader bytecode is invalid.");
+        VC_ASSERT(m_transparentPixelShaderBytecode.IsValid(), "Sandbox transparent pixel shader bytecode is invalid.");
+        VC_ASSERT(m_shadowVertexShaderBytecode.IsValid(), "Sandbox shadow vertex shader bytecode is invalid.");
+        VC_ASSERT(m_shadowPixelShaderBytecode.IsValid(), "Sandbox shadow pixel shader bytecode is invalid.");
         VC_ASSERT(inlinePixelShader.IsValid(), "Sandbox inline pixel shader bytecode is invalid.");
         VC_ASSERT(m_vertexShaderBytecode.GetData() != nullptr, "Sandbox vertex shader bytecode pointer is null.");
         VC_ASSERT(m_pixelShaderBytecode.GetData() != nullptr, "Sandbox pixel shader bytecode pointer is null.");
+        VC_ASSERT(
+            m_lightingVertexShaderBytecode.GetData() != nullptr,
+            "Sandbox lighting vertex shader bytecode pointer is null.");
+        VC_ASSERT(
+            m_lightingPixelShaderBytecode.GetData() != nullptr,
+            "Sandbox lighting pixel shader bytecode pointer is null.");
+        VC_ASSERT(
+            m_ssaoPixelShaderBytecode.GetData() != nullptr,
+            "Sandbox SSAO pixel shader bytecode pointer is null.");
+        VC_ASSERT(
+            m_transparentPixelShaderBytecode.GetData() != nullptr,
+            "Sandbox transparent pixel shader bytecode pointer is null.");
+        VC_ASSERT(
+            m_shadowVertexShaderBytecode.GetData() != nullptr,
+            "Sandbox shadow vertex shader bytecode pointer is null.");
+        VC_ASSERT(
+            m_shadowPixelShaderBytecode.GetData() != nullptr,
+            "Sandbox shadow pixel shader bytecode pointer is null.");
         VC_ASSERT(inlinePixelShader.GetData() != nullptr, "Sandbox inline pixel shader bytecode pointer is null.");
 
-        m_shaderCompileCount = 3;
+        m_shaderCompileCount = 9;
         m_shaderCompileByteSize = m_vertexShaderBytecode.GetInfo().sizeInBytes
             + m_pixelShaderBytecode.GetInfo().sizeInBytes
+            + m_lightingVertexShaderBytecode.GetInfo().sizeInBytes
+            + m_lightingPixelShaderBytecode.GetInfo().sizeInBytes
+            + m_ssaoPixelShaderBytecode.GetInfo().sizeInBytes
+            + m_transparentPixelShaderBytecode.GetInfo().sizeInBytes
+            + m_shadowVertexShaderBytecode.GetInfo().sizeInBytes
+            + m_shadowPixelShaderBytecode.GetInfo().sizeInBytes
             + inlinePixelShader.GetInfo().sizeInBytes;
         m_shaderCompilerSmokeTestPassed = true;
 
         VC_LOG_INFO(
             "Sandbox HLSL compile: fileVS=" +
             std::to_string(m_vertexShaderBytecode.GetInfo().sizeInBytes) +
-            " bytes, filePS=" +
+            " bytes, fileGBufferPS=" +
             std::to_string(m_pixelShaderBytecode.GetInfo().sizeInBytes) +
+            " bytes, fileLightingVS=" +
+            std::to_string(m_lightingVertexShaderBytecode.GetInfo().sizeInBytes) +
+            " bytes, fileLightingPS=" +
+            std::to_string(m_lightingPixelShaderBytecode.GetInfo().sizeInBytes) +
+            " bytes, fileSsaoPS=" +
+            std::to_string(m_ssaoPixelShaderBytecode.GetInfo().sizeInBytes) +
+            " bytes, fileTransparentPS=" +
+            std::to_string(m_transparentPixelShaderBytecode.GetInfo().sizeInBytes) +
+            " bytes, fileShadowVS=" +
+            std::to_string(m_shadowVertexShaderBytecode.GetInfo().sizeInBytes) +
+            " bytes, fileShadowPS=" +
+            std::to_string(m_shadowPixelShaderBytecode.GetInfo().sizeInBytes) +
             " bytes, inlinePS=" +
             std::to_string(inlinePixelShader.GetInfo().sizeInBytes) +
             " bytes, total=" +
@@ -1322,11 +1960,138 @@ float4 SandboxInlinePixelMain() : SV_TARGET
             std::string(
                 m_vertexShaderBytecode.GetInfo().hasWarnings
                         || m_pixelShaderBytecode.GetInfo().hasWarnings
+                        || m_lightingVertexShaderBytecode.GetInfo().hasWarnings
+                        || m_lightingPixelShaderBytecode.GetInfo().hasWarnings
+                        || m_ssaoPixelShaderBytecode.GetInfo().hasWarnings
+                        || m_transparentPixelShaderBytecode.GetInfo().hasWarnings
+                        || m_shadowVertexShaderBytecode.GetInfo().hasWarnings
+                        || m_shadowPixelShaderBytecode.GetInfo().hasWarnings
                         || inlinePixelShader.GetInfo().hasWarnings
                     ? "true"
                     : "false") +
             ", file=" +
             shaderPath.string());
+    }
+
+    void InitializeDx11ShadowMap()
+    {
+        VC_ASSERT(m_dx11Device != nullptr, "DX11 shadow-map initialization requires a ready device.");
+
+        m_dx11ShadowMap = vc::CreateScope<vc::DX11ShadowMap>(
+            *m_dx11Device,
+            vc::DX11ShadowMapSpecification {
+                .width = 1024,
+                .height = 1024,
+                .cascadeCount = static_cast<std::uint32_t>(vc::DX11ShadowCascadeCount)
+            });
+
+        const vc::DX11ShadowMapInfo& shadowMapInfo = m_dx11ShadowMap->GetInfo();
+        VC_LOG_INFO(
+            "Sandbox DX11 shadow map: size=" +
+            std::to_string(shadowMapInfo.width) +
+            "x" +
+            std::to_string(shadowMapInfo.height) +
+            ", cascades=" +
+            std::to_string(shadowMapInfo.cascadeCount) +
+            ", depth=" +
+            shadowMapInfo.depthStencilFormat +
+            ", srv=" +
+            shadowMapInfo.shaderResourceFormat);
+    }
+
+    void InitializeDx11ShadowPipelineState()
+    {
+        VC_ASSERT(m_shadowVertexShaderBytecode.IsValid(), "DX11 shadow pipeline initialization requires a compiled vertex shader.");
+        VC_ASSERT(m_shadowPixelShaderBytecode.IsValid(), "DX11 shadow pipeline initialization requires a compiled pixel shader.");
+        VC_ASSERT(m_dx11Device != nullptr, "DX11 shadow pipeline initialization requires a ready device.");
+        VC_ASSERT(m_dx11ShadowMap != nullptr, "DX11 shadow pipeline initialization requires a shadow map.");
+
+        vc::DX11PipelineStateSpecification specification {};
+        specification.vertexShader = &m_shadowVertexShaderBytecode;
+        specification.pixelShader = &m_shadowPixelShaderBytecode;
+        specification.inputElements = {
+            vc::DX11InputElement {
+                .semanticName = "POSITION",
+                .semanticIndex = 0,
+                .format = vc::DX11InputElementFormat::Float3,
+                .inputSlot = 0,
+                .alignedByteOffset = static_cast<std::uint32_t>(offsetof(SandboxVertex, position)),
+                .perInstanceData = false,
+                .instanceDataStepRate = 0
+            },
+            vc::DX11InputElement {
+                .semanticName = "COLOR",
+                .semanticIndex = 0,
+                .format = vc::DX11InputElementFormat::Float4,
+                .inputSlot = 0,
+                .alignedByteOffset = static_cast<std::uint32_t>(offsetof(SandboxVertex, color)),
+                .perInstanceData = false,
+                .instanceDataStepRate = 0
+            },
+            vc::DX11InputElement {
+                .semanticName = "TEXCOORD",
+                .semanticIndex = 0,
+                .format = vc::DX11InputElementFormat::Float2,
+                .inputSlot = 0,
+                .alignedByteOffset = static_cast<std::uint32_t>(offsetof(SandboxVertex, uv)),
+                .perInstanceData = false,
+                .instanceDataStepRate = 0
+            }
+        };
+        specification.primitiveTopology = vc::DX11PrimitiveTopology::TriangleList;
+        specification.rasterizer.fillMode = vc::DX11FillMode::Solid;
+        specification.rasterizer.cullMode = vc::DX11CullMode::None;
+        specification.rasterizer.depthClipEnable = true;
+        specification.blend.enableBlending = false;
+        specification.viewport = vc::DX11Viewport {
+            .x = 0.0f,
+            .y = 0.0f,
+            .width = static_cast<float>(m_dx11ShadowMap->GetInfo().width),
+            .height = static_cast<float>(m_dx11ShadowMap->GetInfo().height),
+            .minDepth = 0.0f,
+            .maxDepth = 1.0f
+        };
+
+        m_dx11ShadowPipelineState = vc::CreateScope<vc::DX11PipelineState>(*m_dx11Device, std::move(specification));
+        const vc::DX11PipelineStateInfo& pipelineInfo = m_dx11ShadowPipelineState->GetInfo();
+        VC_LOG_INFO(
+            "Sandbox DX11 shadow pipeline: topology=" +
+            pipelineInfo.primitiveTopology +
+            ", inputElements=" +
+            std::to_string(pipelineInfo.inputElementCount) +
+            ", rasterizer=" +
+            pipelineInfo.fillMode +
+            "/" +
+            pipelineInfo.cullMode +
+            ", viewport=" +
+            std::to_string(static_cast<std::uint32_t>(pipelineInfo.viewportWidth)) +
+            "x" +
+            std::to_string(static_cast<std::uint32_t>(pipelineInfo.viewportHeight)));
+    }
+
+    void InitializeDx11ShadowPassBuffer()
+    {
+        VC_ASSERT(m_dx11Device != nullptr, "DX11 shadow buffer initialization requires a ready device.");
+
+        m_dx11ShadowPassBuffer = vc::CreateScope<vc::DX11Buffer>(
+            *m_dx11Device,
+            vc::DX11BufferSpecification {
+                .sizeInBytes = sizeof(SandboxShadowPassBlock),
+                .stride = sizeof(SandboxShadowPassBlock),
+                .kind = vc::DX11BufferKind::Constant,
+                .usage = vc::DX11BufferUsage::Dynamic,
+                .cpuReadable = false,
+                .cpuWritable = true
+            });
+
+        const vc::DX11BufferInfo& bufferInfo = m_dx11ShadowPassBuffer->GetInfo();
+        VC_LOG_INFO(
+            "Sandbox DX11 shadow buffer: kind=" +
+            bufferInfo.kind +
+            ", usage=" +
+            bufferInfo.usage +
+            ", bytes=" +
+            std::to_string(bufferInfo.sizeInBytes));
     }
 
     void InitializeDx11PipelineState()
@@ -1371,11 +2136,7 @@ float4 SandboxInlinePixelMain() : SV_TARGET
         specification.rasterizer.fillMode = vc::DX11FillMode::Solid;
         specification.rasterizer.cullMode = vc::DX11CullMode::None;
         specification.rasterizer.depthClipEnable = true;
-        specification.blend.enableBlending = true;
-        specification.blend.sourceColor = vc::DX11BlendFactor::SrcAlpha;
-        specification.blend.destinationColor = vc::DX11BlendFactor::InvSrcAlpha;
-        specification.blend.sourceAlpha = vc::DX11BlendFactor::One;
-        specification.blend.destinationAlpha = vc::DX11BlendFactor::InvSrcAlpha;
+        specification.blend.enableBlending = false;
         specification.viewport = vc::DX11Viewport {
             .x = 0.0f,
             .y = 0.0f,
@@ -1409,25 +2170,73 @@ float4 SandboxInlinePixelMain() : SV_TARGET
         VC_ASSERT(m_dx11Device != nullptr, "DX11 geometry initialization requires a ready device.");
         VC_ASSERT(m_dx11TextureAtlas != nullptr, "DX11 geometry initialization requires a ready texture atlas.");
 
-        static constexpr std::array<std::uint16_t, 3> kTriangleIndices { 0, 1, 2 };
+        static constexpr std::array<std::uint16_t, 12> kSceneIndices { 0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7 };
+        static constexpr std::array<std::uint16_t, 6> kTransparentIndices { 0, 1, 2, 0, 2, 3 };
         m_dx11AtlasTriangleVariants.clear();
 
         for (const vc::DX11TextureAtlasRegion& region : m_dx11TextureAtlas->GetRegions())
         {
-            const std::array<SandboxVertex, 3> triangleVertices {
+            const std::array<SandboxVertex, 8> sceneVertices {
                 SandboxVertex {
-                    .position = { 0.0f, 0.60f, 0.0f },
-                    .color = { 1.0f, 1.0f, 1.0f, 1.0f },
-                    .uv = { region.uCenter, region.vMin }
+                    .position = { -0.88f, 0.12f, 0.18f },
+                    .color = { 0.95f, 0.95f, 0.95f, 1.0f },
+                    .uv = { region.uMin, region.vMin }
                 },
                 SandboxVertex {
-                    .position = { 0.58f, -0.42f, 0.0f },
+                    .position = { 0.72f, 0.12f, 0.18f },
+                    .color = { 0.95f, 0.95f, 0.95f, 1.0f },
+                    .uv = { region.uMax, region.vMin }
+                },
+                SandboxVertex {
+                    .position = { 0.72f, -0.88f, 0.18f },
+                    .color = { 0.95f, 0.95f, 0.95f, 1.0f },
+                    .uv = { region.uMax, region.vMax }
+                },
+                SandboxVertex {
+                    .position = { -0.88f, -0.88f, 0.18f },
+                    .color = { 0.95f, 0.95f, 0.95f, 1.0f },
+                    .uv = { region.uMin, region.vMax }
+                },
+                SandboxVertex {
+                    .position = { -0.30f, 0.52f, 0.62f },
+                    .color = { 1.0f, 1.0f, 1.0f, 1.0f },
+                    .uv = { region.uMin, region.vMin }
+                },
+                SandboxVertex {
+                    .position = { 0.08f, 0.52f, 0.62f },
+                    .color = { 1.0f, 1.0f, 1.0f, 1.0f },
+                    .uv = { region.uMax, region.vMin }
+                },
+                SandboxVertex {
+                    .position = { 0.18f, -0.08f, 0.62f },
                     .color = { 1.0f, 1.0f, 1.0f, 1.0f },
                     .uv = { region.uMax, region.vMax }
                 },
                 SandboxVertex {
-                    .position = { -0.58f, -0.42f, 0.0f },
+                    .position = { -0.20f, -0.08f, 0.62f },
                     .color = { 1.0f, 1.0f, 1.0f, 1.0f },
+                    .uv = { region.uMin, region.vMax }
+                }
+            };
+            const std::array<SandboxVertex, 4> transparentVertices {
+                SandboxVertex {
+                    .position = { -0.56f, 0.64f, 0.42f },
+                    .color = { 0.72f, 0.95f, 1.00f, 0.52f },
+                    .uv = { region.uMin, region.vMin }
+                },
+                SandboxVertex {
+                    .position = { 0.46f, 0.58f, 0.42f },
+                    .color = { 0.72f, 0.95f, 1.00f, 0.52f },
+                    .uv = { region.uMax, region.vMin }
+                },
+                SandboxVertex {
+                    .position = { 0.56f, -0.52f, 0.42f },
+                    .color = { 0.72f, 0.95f, 1.00f, 0.52f },
+                    .uv = { region.uMax, region.vMax }
+                },
+                SandboxVertex {
+                    .position = { -0.48f, -0.42f, 0.42f },
+                    .color = { 0.72f, 0.95f, 1.00f, 0.52f },
                     .uv = { region.uMin, region.vMax }
                 }
             };
@@ -1438,11 +2247,22 @@ float4 SandboxInlinePixelMain() : SV_TARGET
             variant.geometry = vc::CreateScope<vc::DX11GeometryBuffer>(
                 *m_dx11Device,
                 vc::DX11GeometryBufferSpecification {
-                    .vertexData = triangleVertices.data(),
-                    .vertexCount = static_cast<std::uint32_t>(triangleVertices.size()),
+                    .vertexData = sceneVertices.data(),
+                    .vertexCount = static_cast<std::uint32_t>(sceneVertices.size()),
                     .vertexStride = sizeof(SandboxVertex),
-                    .indexData = kTriangleIndices.data(),
-                    .indexCount = static_cast<std::uint32_t>(kTriangleIndices.size()),
+                    .indexData = kSceneIndices.data(),
+                    .indexCount = static_cast<std::uint32_t>(kSceneIndices.size()),
+                    .indexFormat = vc::DX11IndexFormat::UInt16,
+                    .usage = vc::DX11BufferUsage::Immutable
+                });
+            variant.transparentGeometry = vc::CreateScope<vc::DX11GeometryBuffer>(
+                *m_dx11Device,
+                vc::DX11GeometryBufferSpecification {
+                    .vertexData = transparentVertices.data(),
+                    .vertexCount = static_cast<std::uint32_t>(transparentVertices.size()),
+                    .vertexStride = sizeof(SandboxVertex),
+                    .indexData = kTransparentIndices.data(),
+                    .indexCount = static_cast<std::uint32_t>(kTransparentIndices.size()),
                     .indexFormat = vc::DX11IndexFormat::UInt16,
                     .usage = vc::DX11BufferUsage::Immutable
                 });
@@ -1461,10 +2281,290 @@ float4 SandboxInlinePixelMain() : SV_TARGET
             initialVariant.regionName +
             ", uv=" +
             initialVariant.uvSummary +
+            ", opaqueIndices=" +
+            std::to_string(geometryInfo.indexCount) +
+            ", transparentIndices=" +
+            std::to_string(initialVariant.transparentGeometry->GetInfo().indexCount) +
             ", vertexStride=" +
             std::to_string(geometryInfo.vertexStride) +
+            ", transparentAlphaGeometry=true");
+    }
+
+    void InitializeDx11LightingPipelineState()
+    {
+        VC_ASSERT(
+            m_lightingVertexShaderBytecode.IsValid(),
+            "DX11 lighting pipeline initialization requires a compiled fullscreen vertex shader.");
+        VC_ASSERT(
+            m_lightingPixelShaderBytecode.IsValid(),
+            "DX11 lighting pipeline initialization requires a compiled lighting pixel shader.");
+        VC_ASSERT(m_dx11Device != nullptr, "DX11 lighting pipeline initialization requires a ready device.");
+
+        vc::DX11PipelineStateSpecification specification {};
+        specification.vertexShader = &m_lightingVertexShaderBytecode;
+        specification.pixelShader = &m_lightingPixelShaderBytecode;
+        specification.inputElements = {
+            vc::DX11InputElement {
+                .semanticName = "POSITION",
+                .semanticIndex = 0,
+                .format = vc::DX11InputElementFormat::Float2,
+                .inputSlot = 0,
+                .alignedByteOffset = static_cast<std::uint32_t>(offsetof(SandboxFullscreenVertex, position)),
+                .perInstanceData = false,
+                .instanceDataStepRate = 0
+            },
+            vc::DX11InputElement {
+                .semanticName = "TEXCOORD",
+                .semanticIndex = 0,
+                .format = vc::DX11InputElementFormat::Float2,
+                .inputSlot = 0,
+                .alignedByteOffset = static_cast<std::uint32_t>(offsetof(SandboxFullscreenVertex, uv)),
+                .perInstanceData = false,
+                .instanceDataStepRate = 0
+            }
+        };
+        specification.primitiveTopology = vc::DX11PrimitiveTopology::TriangleList;
+        specification.rasterizer.fillMode = vc::DX11FillMode::Solid;
+        specification.rasterizer.cullMode = vc::DX11CullMode::None;
+        specification.rasterizer.depthClipEnable = true;
+        specification.blend.enableBlending = false;
+        specification.viewport = vc::DX11Viewport {
+            .x = 0.0f,
+            .y = 0.0f,
+            .width = static_cast<float>(GetWindow().GetWidth()),
+            .height = static_cast<float>(GetWindow().GetHeight()),
+            .minDepth = 0.0f,
+            .maxDepth = 1.0f
+        };
+
+        m_dx11LightingPipelineState = vc::CreateScope<vc::DX11PipelineState>(*m_dx11Device, std::move(specification));
+        const vc::DX11PipelineStateInfo& pipelineInfo = m_dx11LightingPipelineState->GetInfo();
+        VC_LOG_INFO(
+            "Sandbox DX11 lighting pipeline: topology=" +
+            pipelineInfo.primitiveTopology +
+            ", inputElements=" +
+            std::to_string(pipelineInfo.inputElementCount) +
+            ", rasterizer=" +
+            pipelineInfo.fillMode +
+            "/" +
+            pipelineInfo.cullMode +
+            ", blending=" +
+            std::string(pipelineInfo.alphaBlendingEnabled ? "true" : "false") +
+            ", viewport=" +
+            std::to_string(static_cast<std::uint32_t>(pipelineInfo.viewportWidth)) +
+            "x" +
+            std::to_string(static_cast<std::uint32_t>(pipelineInfo.viewportHeight)));
+    }
+
+    void InitializeDx11LightingGeometry()
+    {
+        VC_ASSERT(m_dx11Device != nullptr, "DX11 lighting geometry initialization requires a ready device.");
+
+        static constexpr std::array<SandboxFullscreenVertex, 4> kFullscreenVertices {
+            SandboxFullscreenVertex { .position = { -1.0f, 1.0f }, .uv = { 0.0f, 0.0f } },
+            SandboxFullscreenVertex { .position = { 1.0f, 1.0f }, .uv = { 1.0f, 0.0f } },
+            SandboxFullscreenVertex { .position = { 1.0f, -1.0f }, .uv = { 1.0f, 1.0f } },
+            SandboxFullscreenVertex { .position = { -1.0f, -1.0f }, .uv = { 0.0f, 1.0f } }
+        };
+        static constexpr std::array<std::uint16_t, 6> kFullscreenIndices { 0, 1, 2, 0, 2, 3 };
+
+        m_dx11LightingGeometry = vc::CreateScope<vc::DX11GeometryBuffer>(
+            *m_dx11Device,
+            vc::DX11GeometryBufferSpecification {
+                .vertexData = kFullscreenVertices.data(),
+                .vertexCount = static_cast<std::uint32_t>(kFullscreenVertices.size()),
+                .vertexStride = sizeof(SandboxFullscreenVertex),
+                .indexData = kFullscreenIndices.data(),
+                .indexCount = static_cast<std::uint32_t>(kFullscreenIndices.size()),
+                .indexFormat = vc::DX11IndexFormat::UInt16,
+                .usage = vc::DX11BufferUsage::Immutable
+            });
+
+        const vc::DX11GeometryBufferInfo& geometryInfo = m_dx11LightingGeometry->GetInfo();
+        VC_LOG_INFO(
+            "Sandbox DX11 lighting geometry: vertices=" +
+            std::to_string(geometryInfo.vertexCount) +
             ", indices=" +
-            std::to_string(geometryInfo.indexCount));
+            std::to_string(geometryInfo.indexCount) +
+            ", vertexStride=" +
+            std::to_string(geometryInfo.vertexStride));
+    }
+
+    void InitializeDx11LightingPass()
+    {
+        VC_ASSERT(m_dx11Device != nullptr, "DX11 lighting pass initialization requires a ready device.");
+        VC_ASSERT(m_dx11RenderTargets != nullptr, "DX11 lighting pass initialization requires render targets.");
+        VC_ASSERT(m_dx11GBuffer != nullptr, "DX11 lighting pass initialization requires a G-buffer.");
+
+        m_dx11LightingPass = vc::CreateScope<vc::DX11LightingPass>(
+            *m_dx11Device,
+            *m_dx11RenderTargets,
+            *m_dx11GBuffer,
+            m_dx11ShadowMap.get());
+
+        const vc::DX11LightingPassInfo& lightingInfo = m_dx11LightingPass->GetInfo();
+        const vc::DX11LightingPassParameters& lightingParameters = m_dx11LightingPass->GetParameters();
+        VC_LOG_INFO(
+            "Sandbox DX11 lighting pass: inputs=" +
+            std::to_string(lightingInfo.gBufferInputCount) +
+            ", albedo=" +
+            lightingInfo.albedoFormat +
+            ", normal=" +
+            lightingInfo.normalFormat +
+            ", material=" +
+            lightingInfo.materialFormat +
+            ", depth=" +
+            lightingInfo.depthFormat +
+            ", shadowCascades=" +
+            std::to_string(lightingInfo.shadowCascadeCount) +
+            ", directionalIntensity=" +
+            std::to_string(lightingParameters.directionalLight.intensity) +
+            ", pointRadius=" +
+            std::to_string(lightingParameters.pointLight.radius));
+    }
+
+    void InitializeDx11TransparentPipelineState()
+    {
+        VC_ASSERT(m_vertexShaderBytecode.IsValid(), "DX11 transparent pipeline initialization requires a compiled vertex shader.");
+        VC_ASSERT(
+            m_transparentPixelShaderBytecode.IsValid(),
+            "DX11 transparent pipeline initialization requires a compiled transparent pixel shader.");
+        VC_ASSERT(m_dx11Device != nullptr, "DX11 transparent pipeline initialization requires a ready device.");
+
+        vc::DX11PipelineStateSpecification specification {};
+        specification.vertexShader = &m_vertexShaderBytecode;
+        specification.pixelShader = &m_transparentPixelShaderBytecode;
+        specification.inputElements = {
+            vc::DX11InputElement {
+                .semanticName = "POSITION",
+                .semanticIndex = 0,
+                .format = vc::DX11InputElementFormat::Float3,
+                .inputSlot = 0,
+                .alignedByteOffset = static_cast<std::uint32_t>(offsetof(SandboxVertex, position)),
+                .perInstanceData = false,
+                .instanceDataStepRate = 0
+            },
+            vc::DX11InputElement {
+                .semanticName = "COLOR",
+                .semanticIndex = 0,
+                .format = vc::DX11InputElementFormat::Float4,
+                .inputSlot = 0,
+                .alignedByteOffset = static_cast<std::uint32_t>(offsetof(SandboxVertex, color)),
+                .perInstanceData = false,
+                .instanceDataStepRate = 0
+            },
+            vc::DX11InputElement {
+                .semanticName = "TEXCOORD",
+                .semanticIndex = 0,
+                .format = vc::DX11InputElementFormat::Float2,
+                .inputSlot = 0,
+                .alignedByteOffset = static_cast<std::uint32_t>(offsetof(SandboxVertex, uv)),
+                .perInstanceData = false,
+                .instanceDataStepRate = 0
+            }
+        };
+        specification.primitiveTopology = vc::DX11PrimitiveTopology::TriangleList;
+        specification.rasterizer.fillMode = vc::DX11FillMode::Solid;
+        specification.rasterizer.cullMode = vc::DX11CullMode::None;
+        specification.rasterizer.depthClipEnable = true;
+        specification.blend.enableBlending = true;
+        specification.blend.sourceColor = vc::DX11BlendFactor::SrcAlpha;
+        specification.blend.destinationColor = vc::DX11BlendFactor::InvSrcAlpha;
+        specification.blend.colorOperation = vc::DX11BlendOperation::Add;
+        specification.blend.sourceAlpha = vc::DX11BlendFactor::One;
+        specification.blend.destinationAlpha = vc::DX11BlendFactor::InvSrcAlpha;
+        specification.blend.alphaOperation = vc::DX11BlendOperation::Add;
+        specification.viewport = vc::DX11Viewport {
+            .x = 0.0f,
+            .y = 0.0f,
+            .width = static_cast<float>(GetWindow().GetWidth()),
+            .height = static_cast<float>(GetWindow().GetHeight()),
+            .minDepth = 0.0f,
+            .maxDepth = 1.0f
+        };
+
+        m_dx11TransparentPipelineState = vc::CreateScope<vc::DX11PipelineState>(*m_dx11Device, std::move(specification));
+        const vc::DX11PipelineStateInfo& pipelineInfo = m_dx11TransparentPipelineState->GetInfo();
+        VC_LOG_INFO(
+            "Sandbox DX11 transparent pipeline: topology=" +
+            pipelineInfo.primitiveTopology +
+            ", inputElements=" +
+            std::to_string(pipelineInfo.inputElementCount) +
+            ", rasterizer=" +
+            pipelineInfo.fillMode +
+            "/" +
+            pipelineInfo.cullMode +
+            ", blending=" +
+            std::string(pipelineInfo.alphaBlendingEnabled ? "true" : "false") +
+            ", viewport=" +
+            std::to_string(static_cast<std::uint32_t>(pipelineInfo.viewportWidth)) +
+            "x" +
+            std::to_string(static_cast<std::uint32_t>(pipelineInfo.viewportHeight)));
+    }
+
+    void InitializeDx11TransparentPass()
+    {
+        VC_ASSERT(m_dx11Device != nullptr, "DX11 transparent pass initialization requires a ready device.");
+        VC_ASSERT(m_dx11RenderTargets != nullptr, "DX11 transparent pass initialization requires render targets.");
+
+        m_dx11TransparentPass = vc::CreateScope<vc::DX11TransparentPass>(*m_dx11Device, *m_dx11RenderTargets);
+
+        const vc::DX11TransparentPassInfo& transparentInfo = m_dx11TransparentPass->GetInfo();
+        VC_LOG_INFO(
+            "Sandbox DX11 transparent pass: depth=" +
+            transparentInfo.depthFunction +
+            ", depthWrites=" +
+            std::string(transparentInfo.depthWritesEnabled ? "true" : "false") +
+            ", alphaBlendRequired=" +
+            std::string(transparentInfo.alphaBlendingRequired ? "true" : "false"));
+    }
+
+    void UpdateDx11ShadowPassData(std::uint64_t nextFrame)
+    {
+        const vc::DX11DirectionalLightParameters directionalLight = BuildSandboxDirectionalLightParameters(nextFrame);
+        const vc::Vec3 lightDirection(
+            directionalLight.direction[0],
+            directionalLight.direction[1],
+            directionalLight.direction[2]);
+        m_shadowCascadeStates = BuildSandboxShadowCascadeStates(lightDirection);
+    }
+
+    void UpdateDx11LightingPassParameters(std::uint64_t nextFrame)
+    {
+        if (!m_dx11LightingPass)
+        {
+            return;
+        }
+
+        const float time = static_cast<float>(nextFrame) * 0.01f;
+        vc::DX11LightingPassParameters parameters = m_dx11LightingPass->GetParameters();
+        parameters.aspectRatio = GetWindowAspectRatio();
+        parameters.directionalLight = BuildSandboxDirectionalLightParameters(nextFrame);
+        parameters.pointLight.screenUv = {
+            0.50f + 0.18f * std::sin(time * 0.83f + 0.25f),
+            0.48f + 0.16f * std::cos(time * 0.57f + 0.4f)
+        };
+        parameters.pointLight.radius = 0.24f + 0.06f * (0.5f + 0.5f * std::sin(time * 0.49f + 0.6f));
+        parameters.pointLight.intensity = 1.25f + 0.25f * std::sin(time * 0.65f + 0.35f);
+        parameters.pointLight.color = { 1.00f, 0.46f, 0.23f };
+        parameters.pointLight.depthInfluence = 0.35f;
+        parameters.normalStrength = 1.0f;
+        parameters.materialInfluence = 0.45f;
+        parameters.shadows.enabled = m_dx11ShadowMap ? 1.0f : 0.0f;
+        parameters.shadows.strength = 0.78f;
+        parameters.shadows.depthBias = 0.0018f;
+        parameters.shadows.cascadeBlend = 0.0f;
+        parameters.shadows.cameraPosition = { 0.0f, 0.0f, 0.0f };
+        parameters.shadows.cameraForward = { 0.0f, 0.0f, 1.0f };
+        parameters.shadows.cascadeCount = m_dx11ShadowMap ? m_dx11ShadowMap->GetInfo().cascadeCount : 0u;
+        for (std::size_t cascadeIndex = 0; cascadeIndex < m_shadowCascadeStates.size(); ++cascadeIndex)
+        {
+            parameters.shadows.cascades[cascadeIndex].worldToShadowTextureMatrix
+                = m_shadowCascadeStates[cascadeIndex].worldToShadowTexture;
+            parameters.shadows.cascades[cascadeIndex].splitDistance
+                = m_shadowCascadeStates[cascadeIndex].splitDistance;
+        }
+        m_dx11LightingPass->UpdateParameters(std::move(parameters));
     }
 
     void InitializeDx11BootstrapTexture()
@@ -1578,6 +2678,28 @@ float4 SandboxInlinePixelMain() : SV_TARGET
         return drawCount;
     }
 
+    [[nodiscard]] std::uint64_t GetDx11TransparentGeometryBindCount() const noexcept
+    {
+        std::uint64_t bindCount = 0;
+        for (const SandboxAtlasTriangleVariant& variant : m_dx11AtlasTriangleVariants)
+        {
+            bindCount += variant.transparentGeometry ? variant.transparentGeometry->GetInfo().bindCount : 0;
+        }
+
+        return bindCount;
+    }
+
+    [[nodiscard]] std::uint64_t GetDx11TransparentGeometryDrawCount() const noexcept
+    {
+        std::uint64_t drawCount = 0;
+        for (const SandboxAtlasTriangleVariant& variant : m_dx11AtlasTriangleVariants)
+        {
+            drawCount += variant.transparentGeometry ? variant.transparentGeometry->GetInfo().drawCount : 0;
+        }
+
+        return drawCount;
+    }
+
     void UpdateActiveDx11AtlasVariant(std::uint64_t nextFrame)
     {
         if (m_dx11AtlasTriangleVariants.empty())
@@ -1663,14 +2785,25 @@ float4 SandboxInlinePixelMain() : SV_TARGET
     vc::SystemScheduler m_systemScheduler;
     vc::Scope<vc::DX11Buffer> m_dx11DynamicBuffer;
     vc::Scope<vc::DX11Buffer> m_dx11ReadbackBuffer;
+    vc::Scope<vc::DX11Buffer> m_dx11ShadowPassBuffer;
     vc::Scope<vc::DX11Texture2D> m_dx11BootstrapTexture;
     vc::Scope<vc::DX11TextureAtlas> m_dx11TextureAtlas;
     vc::Scope<vc::DX11PipelineState> m_dx11PipelineState;
+    vc::Scope<vc::DX11PipelineState> m_dx11ShadowPipelineState;
+    vc::Scope<vc::DX11PipelineState> m_dx11LightingPipelineState;
+    vc::Scope<vc::DX11PipelineState> m_dx11TransparentPipelineState;
+    vc::Scope<vc::DX11DepthPrePass> m_dx11DepthPrePass;
+    vc::Scope<vc::DX11GBuffer> m_dx11GBuffer;
+    vc::Scope<vc::DX11LightingPass> m_dx11LightingPass;
+    vc::Scope<vc::DX11TransparentPass> m_dx11TransparentPass;
+    vc::Scope<vc::DX11GeometryBuffer> m_dx11LightingGeometry;
     vc::Scope<vc::DX11ContextSync> m_dx11ContextSync;
     vc::Scope<vc::DX11Device> m_dx11Device;
     vc::Scope<vc::DX11RenderTargets> m_dx11RenderTargets;
+    vc::Scope<vc::DX11ShadowMap> m_dx11ShadowMap;
     vc::Scope<vc::DX11SwapChain> m_dx11SwapChain;
     std::vector<SandboxAtlasTriangleVariant> m_dx11AtlasTriangleVariants;
+    std::array<SandboxShadowCascadeState, vc::DX11ShadowCascadeCount> m_shadowCascadeStates {};
     vc::Scope<vc::ArenaAllocator> m_bootstrapArena;
     vc::Scope<vc::PoolAllocator> m_particlePool;
     SandboxPoolParticle* m_retainedParticle = nullptr;
@@ -1680,6 +2813,11 @@ float4 SandboxInlinePixelMain() : SV_TARGET
     std::size_t m_activeDx11AtlasVariantIndex = 0;
     vc::DX11ShaderBytecode m_vertexShaderBytecode;
     vc::DX11ShaderBytecode m_pixelShaderBytecode;
+    vc::DX11ShaderBytecode m_shadowVertexShaderBytecode;
+    vc::DX11ShaderBytecode m_shadowPixelShaderBytecode;
+    vc::DX11ShaderBytecode m_lightingVertexShaderBytecode;
+    vc::DX11ShaderBytecode m_lightingPixelShaderBytecode;
+    vc::DX11ShaderBytecode m_transparentPixelShaderBytecode;
     SandboxGpuFrameBlock m_lastGpuFrameBlock {};
     std::uint32_t m_primeCountResult = 0;
     std::uint32_t m_shaderCompileCount = 0;
