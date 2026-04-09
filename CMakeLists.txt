@@ -31,13 +31,18 @@ add_library(VoxelCube
     engine/src/core/Memory.cpp
     engine/src/core/Window.cpp
     engine/src/renderer/DX11Buffer.cpp
+    engine/src/renderer/DX11DepthPrePass.cpp
+    engine/src/renderer/DX11GBuffer.cpp
     engine/src/renderer/DX11GeometryBuffer.cpp
+    engine/src/renderer/DX11LightingPass.cpp
     engine/src/renderer/DX11PipelineState.cpp
     engine/src/renderer/DX11ShaderCompiler.cpp
     engine/src/renderer/DX11ContextSync.cpp
     engine/src/renderer/DX11Device.cpp
     engine/src/renderer/DX11RenderTargets.cpp
+    engine/src/renderer/DX11ShadowMap.cpp
     engine/src/renderer/DX11SwapChain.cpp
+    engine/src/renderer/DX11TransparentPass.cpp
     engine/src/renderer/DX11TextureAtlas.cpp
     engine/src/renderer/DX11Texture2D.cpp
 )
@@ -108,13 +113,18 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES
     engine/src/core/Memory.cpp
     engine/src/core/Window.cpp
     engine/src/renderer/DX11Buffer.cpp
+    engine/src/renderer/DX11DepthPrePass.cpp
+    engine/src/renderer/DX11GBuffer.cpp
     engine/src/renderer/DX11GeometryBuffer.cpp
+    engine/src/renderer/DX11LightingPass.cpp
     engine/src/renderer/DX11PipelineState.cpp
     engine/src/renderer/DX11ShaderCompiler.cpp
     engine/src/renderer/DX11ContextSync.cpp
     engine/src/renderer/DX11Device.cpp
     engine/src/renderer/DX11RenderTargets.cpp
+    engine/src/renderer/DX11ShadowMap.cpp
     engine/src/renderer/DX11SwapChain.cpp
+    engine/src/renderer/DX11TransparentPass.cpp
     engine/src/renderer/DX11TextureAtlas.cpp
     engine/src/renderer/DX11Texture2D.cpp
     sandbox/src/Main.cpp

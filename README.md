@@ -54,8 +54,8 @@
 ## ⚙️ Ключевые технологии
  
 ### Рендеринг — DirectX 11
-- Текущий bootstrap уже поднимает `ID3D11Device`, `ID3D11DeviceContext`, `IDXGISwapChain1`, back buffer `RTV`, depth `DSV/SRV`, DX11 context sync через `D3D11_QUERY_EVENT`, общий `DX11Buffer`-слой с `Write`, `CopyFrom`, `Map/Unmap`, `DX11ShaderCompiler` для HLSL bytecode compilation через `D3DCompile`, `DX11PipelineState` для shader/input-layout/rasterizer/blend/viewport binding, `DX11GeometryBuffer` для vertex/index upload, `DX11Texture2D` для `.dds`-загрузки, `SRV` и pixel-shader binding, а также `DX11TextureAtlas` для grid/custom regions поверх atlas texture.
-- Следующие шаги рендера: material binding, camera/view-projection data и переход от textured atlas-bootstrap triangle к реальному voxel draw path.
+- Текущий bootstrap уже поднимает `ID3D11Device`, `ID3D11DeviceContext`, `IDXGISwapChain1`, back buffer `RTV`, depth `DSV/SRV`, DX11 context sync через `D3D11_QUERY_EVENT`, общий `DX11Buffer`-слой с `Write`, `CopyFrom`, `Map/Unmap`, `DX11ShaderCompiler` для HLSL bytecode compilation через `D3DCompile`, `DX11PipelineState` для shader/input-layout/rasterizer/blend/viewport binding, `DX11GeometryBuffer` для vertex/index upload, `DX11Texture2D` для `.dds`-загрузки, `SRV` и pixel-shader binding, `DX11TextureAtlas` для grid/custom regions поверх atlas texture, `DX11DepthPrePass` для depth-only + read-only color pass, `DX11GBuffer` для MRT albedo/normal/material targets, `DX11ShadowMap` для двухкаскадной shadow-map array, `DX11LightingPass` для fullscreen deferred resolve с directional + point lighting и shadowed directional light в backbuffer, а также `DX11TransparentPass` для alpha-blended forward transparent pass поверх depth buffer.
+- Следующие шаги рендера: SSAO, material binding, camera/view-projection data и переход от textured atlas-bootstrap deferred lighting к реальному voxel draw path.
  
 ### Физика — NVIDIA PhysX 5
 - Полная поддержка Rigid Body Dynamics
@@ -439,7 +439,7 @@ VoxelCube/
  
 ### v0.1.0 — Core Engine *(в разработке)*
 - [x] CMake bootstrap, `Application`, `Window`, `Input`, `Config`, `FileSystem`, `EventBus`, `JobSystem`, `Memory`/arena/pool allocators, `Math/Vec3`, `ECS Registry/SystemScheduler`, `TransformComponent`, `CameraComponent` с auto-detect `EnTT` и fallback backend, настраиваемый логгер с уровнями и file sink
-- [ ] DirectX 11 рендерер (device + immediate context + swapchain + render targets + context sync + buffer map/unmap + shader compile + pipeline state + geometry upload/indexed draw + DDS texture loading + texture atlas готовы, material path в работе)
+- [ ] DirectX 11 рендерер (device + immediate context + swapchain + render targets + context sync + buffer map/unmap + shader compile + pipeline state + geometry upload/indexed draw + DDS texture loading + texture atlas + depth pre-pass + g-buffer + lighting pass + shadow maps + transparent pass готовы, SSAO/material/camera data + voxel draw path в работе)
 - [ ] Merged Geometry System (MGS) — прототип
 - [ ] PhysX 5 интеграция (Rigid Body)
 - [ ] OpenAL 3D звук
@@ -490,6 +490,6 @@ VoxelCube/
  
 **VoxelCube Engine** — Построй свой мир, кластер за кластером.
  
-[⭐ Star](https://github.com/your-username/VoxelCube) · [🐛 Issues](https://github.com/your-username/VoxelCube/issues) · [📖 Docs](https://voxelcube.dev/docs) · [💬 Discord](https://discord.gg/voxelcube)
+[⭐ Star](https://github.com/ILoveSalt/VoxelCube) · [🐛 Issues](https://github.com/ILoveSalt/VoxelCube/issues) · [📖 Docs](https://voxelcube.dev/docs) · [💬 Discord](https://discord.gg/voxelcube)
  
 </div>

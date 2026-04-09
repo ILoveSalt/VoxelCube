@@ -67,11 +67,11 @@
 | 3.9 | Geometry | VertexBuffer, IndexBuffer upload | ✅ Готово | Есть `DX11GeometryBuffer`: immutable vertex/index upload, `Bind`, `DrawIndexed`, index-format abstraction и runtime-валидация; sandbox поднимает bootstrap triangle и подтверждает 300 bind/draw вызовов на кадрах |
 | 3.10 | Textures | Texture2D загрузка (.dds), SRV | ✅ Готово | Есть `DX11Texture2D`: legacy `.dds` parsing, `ID3D11Texture2D`, `SRV`, point sampler и `BindPS`; sandbox загружает `bootstrap_checker.dds`, использует textured triangle shader path и подтверждает 300 texture bind-вызовов |
 | 3.11 | Textures | Texture Atlas система | ✅ Готово | Есть `DX11TextureAtlas`: grid/custom regions, safe UV-rects с half-texel inset, region lookup и bind поверх atlas texture; sandbox строит 4 atlas-региона и переключает textured triangle между ними в рантайме |
-| 3.12 | Rendering | Depth Pre-Pass | ⏳ | |
-| 3.13 | Rendering | G-Buffer (Deferred Shading) | ⏳ | |
-| 3.14 | Rendering | Lighting Pass (Directional + Point) | ⏳ | |
-| 3.15 | Rendering | Shadow Maps (CSM) | ⏳ | |
-| 3.16 | Rendering | Transparent вокселей проход | ⏳ | |
+| 3.12 | Rendering | Depth Pre-Pass | ✅ Готово | Есть `DX11DepthPrePass`: depth-only bind в `DSV`, depth-write/read-only depth-stencil states и двухпроходный кадр; sandbox делает 300 depth pass + 300 color pass поверх atlas-bootstrap triangle без ошибок |
+| 3.13 | Rendering | G-Buffer (Deferred Shading) | ✅ Готово | Есть `DX11GBuffer`: MRT albedo/normal/material render targets с `RTV/SRV`, resize, clear/bind и preview-copy albedo в backbuffer; sandbox делает 300 G-buffer bind/clear/copy проходов поверх depth pre-pass без ошибок |
+| 3.14 | Rendering | Lighting Pass (Directional + Point) | ✅ Готово | Есть `DX11LightingPass`: fullscreen deferred resolve в backbuffer, bind `albedo/normal/material/depth` как `SRV`, dynamic lighting constant-buffer, linear-clamp sampler и depth-disabled lighting pass; sandbox подтверждает 300 lighting pass/update/fullscreen draw проходов поверх depth pre-pass + G-buffer без ошибок |
+| 3.15 | Rendering | Shadow Maps (CSM) | ✅ Готово | Есть `DX11ShadowMap`: two-cascade shadow-map array с `D32_FLOAT` `DSV`, `R32_FLOAT` `SRV`, cascade bind/clear и интеграцией в `DX11LightingPass`; sandbox подтверждает 300 shadow clear и 600 cascade shadow pass/bind/write проходов вместе со стабильным deferred lighting и `Present` |
+| 3.16 | Rendering | Transparent вокселей проход | ✅ Готово | Есть `DX11TransparentPass`: forward alpha-blended transparent pass поверх backbuffer с read-only `LessEqual` depth state и отдельным transparent pipeline; sandbox подтверждает 300 transparent pass/bind/draw проходов после deferred lighting без ошибок |
 | 3.17 | Post-FX | SSAO | ⏳ | |
 | 3.18 | Post-FX | TAA (Temporal Anti-Aliasing) | ⏳ | |
 | 3.19 | Post-FX | Bloom | ⏳ | |
@@ -284,7 +284,7 @@ namespace vc { namespace world { } }
 ```
 1. Core (1.x)          — без этого ничего не работает
 2. ECS (2.x)           — нужен всем подсистемам
-3. DX11 базовый (3.1–3.11) — до рендера MGS
+3. DX11 базовый (3.1–3.16) — до рендера MGS
 4. MGS core (4.1–4.8)  — ключевая фича движка
 5. PhysX базовый (5.1–5.9)
 6. OpenAL (6.1–6.7)
@@ -302,7 +302,7 @@ namespace vc { namespace world { } }
 
 | # | Проблема | Статус | Решение / Заметка |
 |---|---|---|---|
-| 1 | DX11 слой пока не дошёл до полноценного material/voxel draw-пайплайна | 🔄 В процессе | `ID3D11Device`, `ID3D11DeviceContext`, `IDXGISwapChain1`, `RTV/DSV/SRV`, `Flush`, `WaitForGpuIdle`, `DX11Buffer` с `Map/Unmap`, HLSL compile через `DX11ShaderCompiler`, `DX11PipelineState`, `DX11GeometryBuffer`, `DX11Texture2D`, `DX11TextureAtlas`, bind/clear, `Present` и textured atlas-bootstrap triangle draw уже подняты, но material binding, camera matrices и реальный voxel draw path ещё впереди на этапах 3.12+ |
+| 1 | DX11 слой пока не дошёл до полноценного material/voxel draw-пайплайна | 🔄 В процессе | `ID3D11Device`, `ID3D11DeviceContext`, `IDXGISwapChain1`, `RTV/DSV/SRV`, `Flush`, `WaitForGpuIdle`, `DX11Buffer` с `Map/Unmap`, HLSL compile через `DX11ShaderCompiler`, `DX11PipelineState`, `DX11GeometryBuffer`, `DX11Texture2D`, `DX11TextureAtlas`, `DX11DepthPrePass`, `DX11GBuffer`, `DX11ShadowMap`, `DX11LightingPass`, `DX11TransparentPass`, bind/clear, deferred resolve и `Present` уже подняты, но material binding, camera matrices и реальный voxel draw path ещё впереди на этапах 3.17+ |
 | 2 | `spdlog` не закреплён как обязательная зависимость репозитория | 🔄 В процессе | CMake уже умеет автоматически подключать `spdlog`, но текущий bootstrap полностью работает и без него на встроенном backend с файловым логом |
 | 3 | В build-логе мелькает `pwsh.exe` warning от vcpkg | 🔄 В процессе | Сборка не падает: vcpkg автоматически откатывается на `powershell.exe`; позже можно добавить PowerShell 7 в `PATH` |
 | 4 | Hot-watch пока polling-based | 🔄 В процессе | `FileSystemWatcher` уже рабочий и подходит для dev/hot-reload; при необходимости позже можно заменить на OS-level notifications |
@@ -312,11 +312,13 @@ namespace vc { namespace world { } }
 | 8 | `TransformComponent` пока хранит только local TRS без parent/child hierarchy | 🔄 В процессе | Текущего `translation/rotationEulerDegrees/scale` достаточно для bootstrap, gameplay и будущей камеры; world transforms и scene graph можно добавить следующим слоем |
 | 9 | `CameraComponent` пока не строит полноценные view/projection matrices и frustum | 🔄 В процессе | Сейчас компонент уже хранит projection settings, aspect/FOV helpers и годится для gameplay/bootstrap; матрицы и frustum logic логично добавлять вместе с DX11 renderer |
 | 10 | DX11 слой пока поднимает только immediate context без deferred contexts | 🔄 В процессе | Для текущего bootstrap и ближайшего swapchain/present pipeline достаточно `ID3D11DeviceContext`; deferred contexts и multithreaded command recording можно добавить позже, если реально понадобятся |
-| 11 | DX11 renderer пока ограничен textured atlas-bootstrap triangle draw path без material system и voxel renderer | 🔄 В процессе | `RTV/DSV/SRV`, `Flush`, `WaitForGpuIdle`, `DX11Buffer`, `DX11ShaderCompiler`, `DX11PipelineState`, `DX11GeometryBuffer`, `DX11Texture2D` и `DX11TextureAtlas` уже созданы и проверены, sandbox рисует textured triangle через `DrawIndexed` + `SRV`, переключает atlas-регионы в рантайме, но material system и настоящий voxel renderer ещё впереди |
+| 11 | DX11 renderer пока ограничен textured atlas-bootstrap deferred lighting path без material system и voxel renderer | 🔄 В процессе | `RTV/DSV/SRV`, `Flush`, `WaitForGpuIdle`, `DX11Buffer`, `DX11ShaderCompiler`, `DX11PipelineState`, `DX11GeometryBuffer`, `DX11Texture2D`, `DX11TextureAtlas`, `DX11DepthPrePass`, `DX11GBuffer`, `DX11ShadowMap`, `DX11LightingPass` и `DX11TransparentPass` уже созданы и проверены, sandbox проходит depth-only pre-pass, пишет albedo/normal/material в MRT, делает two-cascade shadow-map pass, fullscreen lighting resolve и отдельный transparent alpha-blend pass в backbuffer, но material system, camera matrices и настоящий voxel renderer ещё впереди |
 | 12 | `DX11Buffer::Write` для dynamic-буферов пока рассчитан на whole-buffer update | 🔄 В процессе | Текущий слой уже покрывает безопасный bootstrap-path через `WriteDiscard` и staging readback; partial updates для dynamic buffers и более тонкая upload-стратегия могут понадобиться позже на этапах geometry/material pipeline |
 | 13 | Shader compilation пока работает как runtime bootstrap, без `.cso` cache/pipeline на этапе сборки | 🔄 В процессе | `DX11ShaderCompiler` уже даёт валидный bytecode из файла и source, чего достаточно для текущего renderer bootstrap; отдельный shader asset pipeline с precompiled `.cso` и build-step можно добавить позже, если он реально понадобится |
 | 14 | `DX11Texture2D` пока поддерживает только legacy uncompressed 32-bit DDS | 🔄 В процессе | Текущий loader уже покрывает bootstrap `.dds` path для `B8G8R8A8_UNORM/R8G8B8A8_UNORM` и этого достаточно для texture smoke-test; DX10-header DDS, BC-compression, arrays/cubemaps и mip-generation можно добавить следующим слоем при реальной необходимости |
 | 15 | `DX11TextureAtlas` пока не делает runtime packing и не связан с material system | 🔄 В процессе | Текущий atlas-слой уже покрывает grid/custom regions, safe UVs и runtime region switching поверх одной atlas texture; packing/import pipeline, material binding и voxel-atlas integration логично добавлять следующим слоем |
+| 16 | `DX11LightingPass` пока остаётся bootstrap deferred resolve без material system и полноценной camera reconstruction | 🔄 В процессе | Текущий слой уже использует все `albedo/normal/material/depth` входы, делает directional + point lighting, directional shadowing через two-cascade shadow-map array и пишет результат в backbuffer, но пока работает на упрощённой fullscreen-схеме с packed world position в material target, без полноценных camera matrices, устойчивой world/view-space reconstruction и полноценной material packing schema |
+| 17 | `DX11TransparentPass` пока реализует только базовый alpha-blended forward path без сортировки прозрачности | 🔄 В процессе | Текущий слой уже даёт отдельный transparent pass поверх depth buffer с read-only `LessEqual` depth test и стандартным `SrcAlpha/InvSrcAlpha` blending; sorting, weighted/OIT подходы и интеграция с настоящими transparent voxel materials можно добавлять следующим шагом при необходимости |
 
 ---
 
@@ -351,6 +353,11 @@ namespace vc { namespace world { } }
 | 2026-04-08 | Реализован DX11 geometry-layer: `DX11GeometryBuffer` добавляет vertex/index upload, `Bind` и `DrawIndexed`; sandbox runtime-поднимает bootstrap triangle и подтверждает 300 geometry bind/draw вызовов вместе с `Present` без ошибок | 3.9 |
 | 2026-04-08 | Реализован DX11 texture-layer: `DX11Texture2D` добавляет `.dds`-загрузку, `ID3D11Texture2D`, `SRV`, point sampler и `BindPS`; sandbox загружает `sandbox/assets/bootstrap_checker.dds`, использует textured triangle shader path и подтверждает 300 texture bind-вызовов вместе с `Present` без ошибок | 3.10 |
 | 2026-04-08 | Реализован DX11 texture-atlas layer: `DX11TextureAtlas` добавляет grid/custom regions и safe UV-rects; sandbox строит 4 atlas-региона поверх `bootstrap_checker.dds`, переключает их на кадрах 1/76/151/226 и подтверждает 300 atlas bind-вызовов вместе с `Present` | 3.11 |
+| 2026-04-08 | Реализован DX11 depth pre-pass layer: `DX11DepthPrePass` добавляет depth-only bind в `DSV`, depth-write/read-only states и двухпроходный кадр; sandbox подтверждает 300 depth pass + 300 color pass, 600 pipeline bind-вызовов и 600 geometry draw-вызовов без ошибок | 3.12 |
+| 2026-04-08 | Реализован DX11 G-buffer layer: `DX11GBuffer` добавляет albedo/normal/material MRT с `RTV/SRV`, resize, clear/bind и preview-copy albedo в backbuffer; sandbox подтверждает 300 G-buffer bind/clear/copy проходов, корректный resize на `1920x1017` и стабильный `Present` без ошибок | 3.13 |
+| 2026-04-08 | Реализован DX11 lighting-pass layer: `DX11LightingPass` добавляет fullscreen deferred resolve с directional + point lighting, bind `albedo/normal/material/depth` как `SRV`, dynamic constant-buffer и lighting output в backbuffer; sandbox подтверждает 300 lighting pass/update/fullscreen draw проходов и стабильный `Present` без ошибок | 3.14 |
+| 2026-04-08 | Реализован DX11 shadow-map layer: `DX11ShadowMap` добавляет two-cascade shadow-map array с `D32_FLOAT` `DSV`, `R32_FLOAT` `SRV`, shadow pass bind/clear и интеграцию в `DX11LightingPass`; sandbox подтверждает 300 shadow clear, 600 cascade shadow pass/bind/write вызовов, 300 lighting resolve и стабильный `Present` без ошибок | 3.15 |
+| 2026-04-08 | Реализован DX11 transparent-pass layer: `DX11TransparentPass` добавляет alpha-blended forward transparent pass поверх backbuffer с read-only `LessEqual` depth state; sandbox подтверждает 300 transparent pass/bind/draw проходов после deferred lighting, корректный depth-aware overlay и стабильный `Present` без ошибок | 3.16 |
 
 ---
 
